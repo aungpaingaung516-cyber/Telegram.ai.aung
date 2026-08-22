@@ -5,7 +5,7 @@ from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filte
 import google.generativeai as genai
 from flask import Flask
 
-# Web Service Port မတက်အောင် Flask Server ပါဝင်သည်
+# Web Service Port အတွက် Flask Server
 server = Flask(__name__)
 
 @server.route('/')
@@ -16,9 +16,9 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     server.run(host='0.0.0.0', port=port)
 
-# API Keys
+# API Keys (အဆင်သင့် အစားထိုးထားပြီး)
 TELEGRAM_BOT_TOKEN = "8903870807:AAHs_ovC4nvT0elYHbbNX-D7j-yc5PujCbs"
-GEMINI_API_KEY = "AQ.Ab8RN6JUV61jGI4-xRXjdg5jHR0Vvw7Kzlm_aN6V2VQe64SeKQ"
+GEMINI_API_KEY = "AIzaSyDnTqp3NFL0hc71artwEqNOm6n3qqHVsek"
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
@@ -34,6 +34,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(bot_reply)
 
 if __name__ == '__main__':
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    print("Bot စတင်နေပါပြီ...")
+    app.run_polling()
     # Flask Server ကို နောက်ကွယ်တွင် Thread ဖြင့် Run ခြင်း
     t = threading.Thread(target=run_flask)
     t.daemon = True
