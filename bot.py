@@ -13,7 +13,6 @@ def home():
     return "🤖 Bot is running 24/7!"
 
 def run_flask():
-    # Render ပေးမယ့် Port ကို ယူသုံးမယ် (မရှိရင် 8080 ကို သုံးမယ်)
     port = int(os.environ.get("PORT", 8080))
     server.run(host='0.0.0.0', port=port)
 
@@ -30,10 +29,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response = model.generate_content(user_message)
         bot_reply = response.text
     except Exception as e:
-        bot_reply = "ခဏလေးနော် အကိုအောင်၊ အမှားအယွင်းရှိလို့ပါ 😅"
+        # ဘာ Error တက်နေတယ်ဆိုတာ Telegram ထဲ တိုက်ရိုက်ပြမယ်
+        bot_reply = f"⚠️ Error ပေါ်နေတယ်: {str(e)}"
+    
     await update.message.reply_text(bot_reply)
 
 if __name__ == '__main__':
+    # Flask ကို Background ထဲမှာ သီးသန့် Run မယ့် Thread
+    t = threading.Thread(target=run_flask)
+    t.start()
+
+    # Telegram Bot ကို စတင် Run မယ်
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    print("Bot စတင်နေပါပြီ...")
+    app.run_polling()
     # Flask ကို Background ထဲမှာ သီးသန့် Run ပေးမယ့် Thread
     t = threading.Thread(target=run_flask)
     t.start()
