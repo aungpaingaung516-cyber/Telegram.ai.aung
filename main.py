@@ -19,21 +19,6 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 app.run_polling()
-    print("Bot စတင်နေပါပြီ...")
-    app.run_polling()
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
-
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    print("Bot စတင်နေပါပြီ...")
-    app.run_polling()
-    # Flask Server ကို နောက်ကွယ်တွင် Thread ဖြင့် Run ခြင်း
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
-
     # Telegram Bot ကို Polling စတင်ခြင်း
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
