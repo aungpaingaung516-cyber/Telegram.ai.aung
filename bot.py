@@ -16,12 +16,14 @@ def run_flask():
     port = int(os.environ.get("PORT", 8080))
     server.run(host='0.0.0.0', port=port)
 
-# API Keys (အဆင်သင့် အစားထိုးထားပြီး)
+# API Keys
 TELEGRAM_BOT_TOKEN = "8903870807:AAHs_ovC4nvT0elYHbbNX-D7j-yc5PujCbs"
 GEMINI_API_KEY = "AIzaSyDnTqp3NFL0hc71artwEqNOm6n3qqHVsek"
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+
+# Model နာမည်ကို gemini-1.5-flash-latest အဖြစ် ပြောင်းလဲသတ်မှတ်ခြင်း
+model = genai.GenerativeModel("gemini-1.5-flash-latest")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
@@ -34,6 +36,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(bot_reply)
 
 if __name__ == '__main__':
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    print("Bot စတင်နေပါပြီ...")
+    app.run_polling()
     t = threading.Thread(target=run_flask)
     t.daemon = True
     t.start()
