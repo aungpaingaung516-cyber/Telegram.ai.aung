@@ -2,10 +2,10 @@ import os
 import threading
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
-import google.generativeai as genai
+from google import genai
 from flask import Flask
 
-# Web Service Port အတွက် Flask Server
+# Render ရဲ့ Web Service Port မတက်အောင် Flask Server ပါဝင်သည်
 server = Flask(__name__)
 
 @server.route('/')
@@ -20,20 +20,32 @@ def run_flask():
 TELEGRAM_BOT_TOKEN = "8903870807:AAHs_ovC4nvT0elYHbbNX-D7j-yc5PujCbs"
 GEMINI_API_KEY = "AIzaSyDnTqp3NFL0hc71artwEqNOm6n3qqHVsek"
 
-genai.configure(api_key=GEMINI_API_KEY)
-
-# Gemini ရဲ့ တရားဝင် Flash Lite Model နာမည်ဖြစ်သည့် gemini-2.0-flash-lite ကို အသုံးပြုထားပါသည်
-model = genai.GenerativeModel("gemini-2.0-flash-lite")
+# Gemini Client သစ်ဖြင့် ချိတ်ဆက်ခြင်း
+client = genai.Client(api_key=GEMINI_API_KEY)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
     try:
-        response = model.generate_content(user_message)
+        # gemini-2.5-flash model ကို အသုံးပြုထားပါသည်
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=user_message,
+        )
         bot_reply = response.text
     except Exception as e:
         bot_reply = f"⚠️ Error ပေါ်နေတယ်: {str(e)}"
     
     await update.message.reply_text(bot_reply)
+
+if __name__ == '__main__':
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    print("Bot စတင်နေပါပြီ...")
+    app.run_polling()
 
 if __name__ == '__main__':
     t = threading.Thread(target=run_flask)
