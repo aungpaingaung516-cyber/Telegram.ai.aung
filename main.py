@@ -19,21 +19,6 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
 app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
 app.run_polling()
-    
-    await update.message.reply_text(bot_reply)
-
-if __name__ == '__main__':
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
-
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    print("Bot စတင်နေပါပြီ...")
-    app.run_polling()
-
-if __name__ == '__main__':
-    t = threading.Thread(target=run_flask)
     t.daemon = True
     t.start()
 
