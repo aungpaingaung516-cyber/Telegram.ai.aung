@@ -22,8 +22,8 @@ GEMINI_API_KEY = "AIzaSyDnTqp3NFL0hc71artwEqNOm6n3qqHVsek"
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Model နာမည်ကို gemini-1.5-flash-latest အဖြစ် ပြောင်းလဲသတ်မှတ်ခြင်း
-model = genai.GenerativeModel("gemini-1.5-flash-latest")
+# Gemini ရဲ့ တရားဝင် Flash Lite Model နာမည်ဖြစ်သည့် gemini-2.0-flash-lite ကို အသုံးပြုထားပါသည်
+model = genai.GenerativeModel("gemini-2.0-flash-lite")
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
@@ -34,6 +34,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         bot_reply = f"⚠️ Error ပေါ်နေတယ်: {str(e)}"
     
     await update.message.reply_text(bot_reply)
+
+if __name__ == '__main__':
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
+    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
+    print("Bot စတင်နေပါပြီ...")
+    app.run_polling()
 
 if __name__ == '__main__':
     t = threading.Thread(target=run_flask)
