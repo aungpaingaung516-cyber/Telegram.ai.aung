@@ -1,39 +1,24 @@
 import os
-import threading
+from google import genai
 from telegram import Update
 from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
-from google import genai
-from flask import Flask
 
-# Render ရဲ့ Web Service Port မတက်အောင် Flask Server ပါဝင်သည်
-server = Flask(__name__)
+TELEGRAM_TOKEN = os.environ.get("TELEGRAM_TOKEN")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-@server.route('/')
-def home():
-    return "🤖 Bot is running 24/7!"
-
-def run_flask():
-    port = int(os.environ.get("PORT", 8080))
-    server.run(host='0.0.0.0', port=port)
-
-# API Keys
-TELEGRAM_BOT_TOKEN = "8903870807:AAHs_ovC4nvT0elYHbbNX-D7j-yc5PujCbs"
-GEMINI_API_KEY = "AIzaSyDnTqp3NFL0hc71artwEqNOm6n3qqHVsek"
-
-# Gemini Client သစ်ဖြင့် ချိတ်ဆက်ခြင်း
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
-    try:
-        # gemini-2.5-flash model ကို အသုံးပြုထားပါသည်
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=user_message,
-        )
-        bot_reply = response.text
-    except Exception as e:
-        bot_reply = f"⚠️ Error ပေါ်နေတယ်: {str(e)}"
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=user_message,
+    )
+    await update.message.reply_text(response.text)
+
+app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
+app.run_polling()
     
     await update.message.reply_text(bot_reply)
 
