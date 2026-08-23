@@ -1,5 +1,6 @@
 import os
 import io
+import json
 import logging
 import threading
 import requests
@@ -12,6 +13,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY")  # fallback AI — optional
+UPSTASH_URL = os.environ.get("UPSTASH_URL")    # persistent storage — optional
+UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -26,8 +29,10 @@ gemini_model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction
 
 logging.basicConfig(level=logging.INFO)
 
-user_histories = {}
+# Fallback in-memory store, used only if Upstash isn't configured
+_memory_histories = {}
 BOT_USERNAME = None
+MAX_HISTORY_MESSAGES = 20  # keep conversations from growing forever
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -45,9 +50,35 @@ def run_health_server():
 
 
 def get_history(chat_id):
-    if chat_id not in user_histories:
-        user_histories[chat_id] = []
-    return user_histories[chat_id]
+    if not UPSTASH_URL:
+        return _memory_histories.get(chat_id, [])
+    try:
+        resp = requests.get(
+            f"{UPSTASH_URL}/get/history:{chat_id}",
+            headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"},
+            timeout=10,
+        )
+        result = resp.json().get("result")
+        return json.loads(result) if result else []
+    except Exception as e:
+        logging.error(f"Upstash get failed: {e}")
+        return []
+
+
+def save_history(chat_id, history):
+    history = history[-MAX_HISTORY_MESSAGES:]
+    if not UPSTASH_URL:
+        _memory_histories[chat_id] = history
+        return
+    try:
+        requests.post(
+            f"{UPSTASH_URL}/set/history:{chat_id}",
+            headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"},
+            data=json.dumps(history),
+            timeout=10,
+        )
+    except Exception as e:
+        logging.error(f"Upstash set failed: {e}")
 
 
 def ask_gemini(history, user_text, image=None):
@@ -90,7 +121,7 @@ def get_ai_response(history, user_text, image=None):
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_histories[update.effective_chat.id] = []
+    save_history(update.effective_chat.id, [])
     await update.message.reply_text(
         "Hi! I'm your AI chat bot. Send me anything — text or a photo — and let's talk. "
         "Use /reset to start a fresh conversation."
@@ -98,7 +129,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_histories[update.effective_chat.id] = []
+    save_history(update.effective_chat.id, [])
     await update.message.reply_text("Conversation cleared. Let's start fresh!")
 
 
@@ -127,6 +158,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = get_ai_response(history, user_text)
         history.append({"role": "user", "content": user_text})
         history.append({"role": "assistant", "content": reply})
+        save_history(chat_id, history)
         await update.message.reply_text(reply)
     except Exception as e:
         logging.error(f"Error: {e}")
@@ -149,6 +181,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply = get_ai_response(history, caption, image=image)
         history.append({"role": "user", "content": caption})
         history.append({"role": "assistant", "content": reply})
+        save_history(chat_id, history)
         await update.message.reply_text(reply)
     except Exception as e:
         logging.error(f"Error: {e}")
