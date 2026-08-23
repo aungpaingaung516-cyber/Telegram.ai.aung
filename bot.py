@@ -1,23 +1,35 @@
 import os
 import logging
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
 import google.generativeai as genai
 from telegram import Update
 from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
 
-# Keys come from Render's Environment Variables (set in the Render dashboard,
-# NOT written here — this keeps them out of your public GitHub repo)
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 PORT = int(os.environ.get("PORT", 10000))
-RENDER_URL = os.environ["RENDER_EXTERNAL_URL"]  # auto-set by Render, e.g. https://your-app.onrender.com
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-1.5-flash")
 
 logging.basicConfig(level=logging.INFO)
 
-# Store conversation history per user (in memory - resets if bot restarts)
 user_chats = {}
+
+
+class HealthHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot is running")
+
+    def log_message(self, format, *args):
+        pass
+
+
+def run_health_server():
+    HTTPServer(("0.0.0.0", PORT), HealthHandler).serve_forever()
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -53,28 +65,17 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def main():
+    threading.Thread(target=run_health_server, daemon=True).start()
+
     app = Application.builder().token(TELEGRAM_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Bot is running via webhook...")
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        url_path=TELEGRAM_TOKEN,
-        webhook_url=f"{RENDER_URL}/{TELEGRAM_TOKEN}",
-    )
+    print("Bot is running via polling...")
+    app.run_polling(drop_pending_updates=True)
 
 
 if __name__ == "__main__":
-    main()    # Flask ကို Background ထဲမှာ သီးသန့် Run ပေးမယ့် Thread
-    t = threading.Thread(target=run_flask)
-    t.start()
-
-    # Telegram Bot ကို စတင် Run မယ်
-    app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    print("Bot စတင်နေပါပြီ...")
-    app.run_polling()
+    main()
