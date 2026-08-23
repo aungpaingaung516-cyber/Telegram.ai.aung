@@ -50,7 +50,6 @@ def get_chat(chat_id):
 
 
 def should_respond_in_group(update: Update) -> bool:
-    # Group ထဲမှာ mention (@) လုပ်ရင် (သို့) bot ရဲ့ message ကို reply လုပ်ရင်သာ ပြန်ဖြေမယ်
     message = update.message
     if message.chat.type == "private":
         return True
@@ -89,7 +88,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(response.text)
     except Exception as e:
         logging.error(f"Error: {e}")
-        await update.message.reply_text("Sorry, something went wrong. Try again in a moment.")
+        await update.message.reply_text(f"⚠️ Error: {str(e)[:300]}")
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -110,7 +109,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(response.text)
     except Exception as e:
         logging.error(f"Error: {e}")
-        await update.message.reply_text("Sorry, I couldn't process that image. Try again.")
+        await update.message.reply_text(f"⚠️ Error: {str(e)[:300]}")
 
 
 async def post_init(app: Application):
