@@ -21,7 +21,7 @@ SYSTEM_INSTRUCTION = (
     "but always genuinely helpful."
 )
 
-model =model = genai.GenerativeModel("gemini-2.5-flash-lite", system_instruction=SYSTEM_INSTRUCTION)
+model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction=SYSTEM_INSTRUCTION)
 
 logging.basicConfig(level=logging.INFO)
 
