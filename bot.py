@@ -11,7 +11,7 @@ GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 PORT = int(os.environ.get("PORT", 10000))
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-1.0-flash")
+model = genai.GenerativeModel("gemini-2.0-flash")
 
 logging.basicConfig(level=logging.INFO)
 
