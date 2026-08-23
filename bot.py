@@ -2,6 +2,7 @@ import os
 import io
 import logging
 import threading
+import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import google.generativeai as genai
 from PIL import Image
@@ -10,22 +11,22 @@ from telegram.ext import Application, CommandHandler, MessageHandler, ContextTyp
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")  # fallback AI — optional
 PORT = int(os.environ.get("PORT", 10000))
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# ===== Bot ရဲ့ character — ဒီစာသားကို ပြောင်းရင် bot ရဲ့ ပြောပုံစံ ပြောင်းပါလိမ့်မယ် =====
 SYSTEM_INSTRUCTION = (
     "You are a friendly, helpful AI assistant chatting with users on Telegram. "
     "Keep replies conversational and not too long. Be warm and a little playful, "
     "but always genuinely helpful."
 )
 
-model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction=SYSTEM_INSTRUCTION)
+gemini_model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction=SYSTEM_INSTRUCTION)
 
 logging.basicConfig(level=logging.INFO)
 
-user_chats = {}
+user_histories = {}
 BOT_USERNAME = None
 
 
@@ -43,10 +44,62 @@ def run_health_server():
     HTTPServer(("0.0.0.0", PORT), HealthHandler).serve_forever()
 
 
-def get_chat(chat_id):
-    if chat_id not in user_chats:
-        user_chats[chat_id] = model.start_chat(history=[])
-    return user_chats[chat_id]
+def get_history(chat_id):
+    if chat_id not in user_histories:
+        user_histories[chat_id] = []
+    return user_histories[chat_id]
+
+
+def ask_gemini(history, user_text, image=None):
+    contents = []
+    for msg in history:
+        role = "user" if msg["role"] == "user" else "model"
+        contents.append({"role": role, "parts": [msg["content"]]})
+    parts = [user_text] if image is None else [user_text, image]
+    contents.append({"role": "user", "parts": parts})
+    response = gemini_model.generate_content(contents)
+    return response.text
+
+
+def ask_groq(history, user_text):
+    messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
+    for msg in history:
+        role = "user" if msg["role"] == "user" else "assistant"
+        messages.append({"role": role, "content": msg["content"]})
+    messages.append({"role": "user", "content": user_text})
+
+    resp = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+        json={"model": "llama-3.3-70b-versatile", "messages": messages},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+
+def get_ai_response(history, user_text, image=None):
+    try:
+        return ask_gemini(history, user_text, image)
+    except Exception as e:
+        logging.error(f"Gemini failed: {e}")
+        if image is not None or not GROQ_API_KEY:
+            raise
+        logging.info("Falling back to Groq...")
+        return ask_groq(history, user_text)
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_histories[update.effective_chat.id] = []
+    await update.message.reply_text(
+        "Hi! I'm your AI chat bot. Send me anything — text or a photo — and let's talk. "
+        "Use /reset to start a fresh conversation."
+    )
+
+
+async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_histories[update.effective_chat.id] = []
+    await update.message.reply_text("Conversation cleared. Let's start fresh!")
 
 
 def should_respond_in_group(update: Update) -> bool:
@@ -62,30 +115,19 @@ def should_respond_in_group(update: Update) -> bool:
     return False
 
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_chats[update.effective_chat.id] = model.start_chat(history=[])
-    await update.message.reply_text(
-        "Hi! I'm your AI chat bot. Send me anything — text or a photo — and let's talk. "
-        "Use /reset to start a fresh conversation."
-    )
-
-
-async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_chats[update.effective_chat.id] = model.start_chat(history=[])
-    await update.message.reply_text("Conversation cleared. Let's start fresh!")
-
-
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not should_respond_in_group(update):
         return
 
     chat_id = update.effective_chat.id
     user_text = update.message.text
-    chat = get_chat(chat_id)
+    history = get_history(chat_id)
 
     try:
-        response = chat.send_message(user_text)
-        await update.message.reply_text(response.text)
+        reply = get_ai_response(history, user_text)
+        history.append({"role": "user", "content": user_text})
+        history.append({"role": "assistant", "content": reply})
+        await update.message.reply_text(reply)
     except Exception as e:
         logging.error(f"Error: {e}")
         await update.message.reply_text(f"⚠️ Error: {str(e)[:300]}")
@@ -96,17 +138,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_id = update.effective_chat.id
-    chat = get_chat(chat_id)
+    history = get_history(chat_id)
 
     photo_file = await update.message.photo[-1].get_file()
     photo_bytes = await photo_file.download_as_bytearray()
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
-
     caption = update.message.caption or "What is in this image?"
 
     try:
-        response = chat.send_message([caption, image])
-        await update.message.reply_text(response.text)
+        reply = get_ai_response(history, caption, image=image)
+        history.append({"role": "user", "content": caption})
+        history.append({"role": "assistant", "content": reply})
+        await update.message.reply_text(reply)
     except Exception as e:
         logging.error(f"Error: {e}")
         await update.message.reply_text(f"⚠️ Error: {str(e)[:300]}")
