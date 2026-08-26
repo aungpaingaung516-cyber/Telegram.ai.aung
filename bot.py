@@ -29,10 +29,9 @@ gemini_model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction
 
 logging.basicConfig(level=logging.INFO)
 
-# Fallback in-memory store, used only if Upstash isn't configured
 _memory_histories = {}
 BOT_USERNAME = None
-MAX_HISTORY_MESSAGES = 20  # keep conversations from growing forever
+MAX_HISTORY_MESSAGES = 20
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -134,7 +133,7 @@ async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def should_respond_in_group(update: Update) -> bool:
-    message = update.message
+    message = update.effective_message
     if message.chat.type == "private":
         return True
     if message.reply_to_message and message.reply_to_message.from_user.username == BOT_USERNAME:
@@ -150,8 +149,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not should_respond_in_group(update):
         return
 
-    chat_id = update.effective_chat.id
-    user_text = update.message.text
+    message = update.effective_message
+    chat_id = message.chat_id
+    user_text = message.text
     history = get_history(chat_id)
 
     try:
@@ -159,33 +159,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history.append({"role": "user", "content": user_text})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
-        await update.message.reply_text(reply)
+        await message.reply_text(reply)
     except Exception as e:
         logging.error(f"Error: {e}")
-        await update.message.reply_text(f"⚠️ Error: {str(e)[:300]}")
+        await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not should_respond_in_group(update):
         return
 
-    chat_id = update.effective_chat.id
+    message = update.effective_message
+    chat_id = message.chat_id
     history = get_history(chat_id)
 
-    photo_file = await update.message.photo[-1].get_file()
+    photo_file = await message.photo[-1].get_file()
     photo_bytes = await photo_file.download_as_bytearray()
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
-    caption = update.message.caption or "What is in this image?"
+    caption = message.caption or "What is in this image?"
 
     try:
         reply = get_ai_response(history, caption, image=image)
         history.append({"role": "user", "content": caption})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
-        await update.message.reply_text(reply)
+        await message.reply_text(reply)
     except Exception as e:
         logging.error(f"Error: {e}")
-        await update.message.reply_text(f"⚠️ Error: {str(e)[:300]}")
+        await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
 
 
 async def post_init(app: Application):
@@ -206,8 +207,8 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     print("Bot is running via polling...")
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
-    main()
+    main()ain()
