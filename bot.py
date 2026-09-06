@@ -24,13 +24,17 @@ MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-SYSTEM_INSTRUCTION = (
-    "You are a friendly, helpful AI assistant chatting with users on Telegram. "
-    "Keep replies conversational and not too long. Be warm and a little playful, "
-    "but always genuinely helpful."
-)
-
-gemini_model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction=SYSTEM_INSTRUCTION)
+# AI Mode အလိုက် စကားပြောမည့် System Instructions များ
+SYSTEM_INSTRUCTIONS = {
+    "friendly": (
+        "You are a warm, friendly, engaging, and helpful AI assistant chatting on Telegram. "
+        "Keep replies conversational, warm, and a little playful."
+    ),
+    "pro": (
+        "You are a professional, polite, structured, and clear AI assistant chatting on Telegram. "
+        "Provide accurate, well-formatted, and concise answers."
+    )
+}
 
 logging.basicConfig(level=logging.INFO)
 
@@ -85,19 +89,23 @@ def save_history(chat_id, history):
         logging.error(f"Upstash set failed: {e}")
 
 
-def ask_gemini(history, user_text, image=None):
+def ask_gemini(history, user_text, image=None, sys_instruction=None):
+    instruction = sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]
+    model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction=instruction)
+    
     contents = []
     for msg in history:
         role = "user" if msg["role"] == "user" else "model"
         contents.append({"role": role, "parts": [msg["content"]]})
     parts = [user_text] if image is None else [user_text, image]
     contents.append({"role": "user", "parts": parts})
-    response = gemini_model.generate_content(contents)
+    response = model.generate_content(contents)
     return response.text
 
 
-def ask_groq(history, user_text):
-    messages = [{"role": "system", "content": SYSTEM_INSTRUCTION}]
+def ask_groq(history, user_text, sys_instruction=None):
+    instruction = sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]
+    messages = [{"role": "system", "content": instruction}]
     for msg in history:
         role = "user" if msg["role"] == "user" else "assistant"
         messages.append({"role": role, "content": msg["content"]})
@@ -113,15 +121,16 @@ def ask_groq(history, user_text):
     return resp.json()["choices"][0]["message"]["content"]
 
 
-def get_ai_response(history, user_text, image=None):
+def get_ai_response(history, user_text, image=None, mode="friendly"):
+    sys_instruction = SYSTEM_INSTRUCTIONS.get(mode, SYSTEM_INSTRUCTIONS["friendly"])
     try:
-        return ask_gemini(history, user_text, image)
+        return ask_gemini(history, user_text, image, sys_instruction)
     except Exception as e:
         logging.error(f"Gemini failed: {e}")
         if image is not None or not GROQ_API_KEY:
             raise
         logging.info("Falling back to Groq...")
-        return ask_groq(history, user_text)
+        return ask_groq(history, user_text, sys_instruction)
 
 
 # --- Menu Keyboards ---
@@ -197,9 +206,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
     elif data.startswith("mode_"):
-        mode_type = data.replace("mode_", "")
-        msg = f"⚙️ AI Mode ပြောင်းလဲလိုက်ပါပြီ (`{mode_type}`)!"
-        await query.edit_message_text(msg, parse_mode="Markdown", reply_Markdown=get_main_keyboard())
+        selected_mode = data.replace("mode_", "")
+        context.user_data["mode"] = selected_mode  # AI Mode ကို သိမ်းဆည်းခြင်း
+        mode_title = "😊 Friendly Mode" if selected_mode == "friendly" else "💼 Professional Mode"
+        msg = f"⚙️ AI Mode ကို *{mode_title}* သို့ ပြောင်းလဲလိုက်ပါပြီ!"
+        await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
 
 
 def should_respond_in_group(update: Update) -> bool:
@@ -223,9 +234,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = message.chat_id
     user_text = message.text
     history = get_history(chat_id)
+    current_mode = context.user_data.get("mode", "friendly")
 
     try:
-        reply = get_ai_response(history, user_text)
+        reply = get_ai_response(history, user_text, mode=current_mode)
         history.append({"role": "user", "content": user_text})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
@@ -242,6 +254,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
     chat_id = message.chat_id
     history = get_history(chat_id)
+    current_mode = context.user_data.get("mode", "friendly")
 
     photo_file = await message.photo[-1].get_file()
     photo_bytes = await photo_file.download_as_bytearray()
@@ -249,7 +262,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     caption = message.caption or "What is in this image?"
 
     try:
-        reply = get_ai_response(history, caption, image=image)
+        reply = get_ai_response(history, caption, image=image, mode=current_mode)
         history.append({"role": "user", "content": caption})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
@@ -274,6 +287,16 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    print("Bot is running via polling...")
+    app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
+
+
+if __name__ == "__main__":
+    main()
+er))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
