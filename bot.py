@@ -7,8 +7,8 @@ import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import google.generativeai as genai
 from PIL import Image
-from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes, filters
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
@@ -16,6 +16,11 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY")  # fallback AI — optional
 UPSTASH_URL = os.environ.get("UPSTASH_URL")    # persistent storage — optional
 UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
+
+# ----------------- ပြင်ဆင်ပြီးသား Link များနှင့် Username -----------------
+ADMIN_USERNAME = "Aungphyopaing7"
+MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
+# -------------------------------------------------------------------------
 
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -119,17 +124,82 @@ def get_ai_response(history, user_text, image=None):
         return ask_groq(history, user_text)
 
 
+# --- Menu Keyboards ---
+def get_main_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton("🔄 Reset Chat", callback_data="reset_chat"),
+            InlineKeyboardButton("💡 Quick Prompts", callback_data="quick_prompts")
+        ],
+        [
+            InlineKeyboardButton("⚙️ AI Mode", callback_data="ai_mode"),
+            InlineKeyboardButton("👨‍💻 Admin Contact", url=f"https://t.me/{ADMIN_USERNAME}")
+        ],
+        [
+            InlineKeyboardButton("🎵 My Playlist နားထောင်ရန်", url=MUSIC_CHANNEL_LINK)
+        ]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_history(update.effective_chat.id, [])
-    await update.message.reply_text(
-        "Hi! I'm your AI chat bot. Send me anything — text or a photo — and let's talk. "
-        "Use /reset to start a fresh conversation."
+    welcome_text = (
+        "Hi! I'm your AI chat bot. Send me anything — text or a photo — and let's talk.\n"
+        "လိုရာ Menu ခလုတ်များကိုလည်း အောက်တွင် ရွေးချယ်နိုင်ပါတယ် -"
     )
+    await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard())
 
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_history(update.effective_chat.id, [])
     await update.message.reply_text("Conversation cleared. Let's start fresh!")
+
+
+# --- Button Click Actions ---
+async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+    chat_id = query.message.chat_id
+
+    if data == "reset_chat":
+        save_history(chat_id, [])
+        await query.edit_message_text(
+            "🔄 စကားပြော History များကို ရှင်းလင်းလိုက်ပါပြီ။ အကြောင်းအရာ အသစ် စပြောနိုင်ပါပြီ!",
+            reply_markup=get_main_keyboard()
+        )
+
+    elif data == "quick_prompts":
+        prompt_keyboard = [
+            [InlineKeyboardButton("🇬🇧 English ကျင့်မယ်", callback_data="prompt_english")],
+            [InlineKeyboardButton("💻 Python Code ကူရေးပါ", callback_data="prompt_python")],
+            [InlineKeyboardButton("📝 စာတို အကျဉ်းချုပ်ပေးပါ", callback_data="prompt_summary")],
+            [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+        ]
+        await query.edit_message_text("နမူနာ Prompt တစ်ခု ရွေးချယ်ပါ -", reply_markup=InlineKeyboardMarkup(prompt_keyboard))
+
+    elif data == "ai_mode":
+        mode_keyboard = [
+            [InlineKeyboardButton("😊 Friendly Mode", callback_data="mode_friendly")],
+            [InlineKeyboardButton("💼 Professional Mode", callback_data="mode_pro")],
+            [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
+        ]
+        await query.edit_message_text("AI စကားပြောမည့် Tone ကို ရွေးပါ -", reply_markup=InlineKeyboardMarkup(mode_keyboard))
+
+    elif data == "main_menu":
+        await query.edit_message_text("လိုရာ Menu ကို ရွေးချယ်ပါ -", reply_markup=get_main_keyboard())
+
+    elif data.startswith("prompt_"):
+        prompt_type = data.replace("prompt_", "")
+        msg = f"💡 Prompt ရွေးချယ်လိုက်ပါပြီ (`{prompt_type}`)။ သိလိုသည်များကို စတင်မေးမြန်းနိုင်ပါပြီ!"
+        await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
+
+    elif data.startswith("mode_"):
+        mode_type = data.replace("mode_", "")
+        msg = f"⚙️ AI Mode ပြောင်းလဲလိုက်ပါပြီ (`{mode_type}`)!"
+        await query.edit_message_text(msg, parse_mode="Markdown", reply_Markdown=get_main_keyboard())
 
 
 def should_respond_in_group(update: Update) -> bool:
@@ -203,6 +273,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
+    app.add_handler(CallbackQueryHandler(button_handler))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
