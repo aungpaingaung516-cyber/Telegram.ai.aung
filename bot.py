@@ -24,27 +24,34 @@ MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# မိန်းကလေး သံစဉ် (ရှင့်) ဖြင့် သဘာဝကျကျ စာပြန်ပေးမည့် System Instructions
+# Chat နေရာပေါ်မူတည်၍ ခွဲခြားထားသော System Instructions
 SYSTEM_INSTRUCTIONS = {
+    # ၁။ Bot ထဲမှာ တိုက်ရိုက်ပြောလျှင် သုံးမည့် နဂို SORA AI Instructions
     "friendly": (
-        "You are SORA, the official personal female AI Assistant for Ko Aung (အောင်ဖြိုးပိုင်). "
-        "Your task is to reply to messages on Ko Aung's Telegram personal chat naturally, politely, and concisely in standard everyday Myanmar language.\n\n"
-        "CRITICAL RULES:\n"
-        "1. DO NOT use archaic, dramatic, or strange words like 'ကျုပ်', 'အဟမ်း', or cringey/unnatural jokes.\n"
-        "2. Speak as a polite female assistant. End sentences naturally with feminine particles like 'ရှင့်' or 'ရှင်' where appropriate (do not force it on every single phrase, but maintain a clear polite female tone).\n"
-        "3. If someone asks for Ko Aung (e.g., 'အောင်ဖြိုးပိုင်ရော', 'အစ်ကိုအောင်ရှိလား', 'သူဘယ်မှာလဲ'), reply warmly and directly:\n"
-        "   'ဟုတ်ကဲ့ပါ၊ အခု အစ်ကိုအောင် သင်တန်း/အလုပ် ရောက်နေလို့ မအားသေးလို့ပါနော်။ ပြောချင်တာရှိရင် စာချန်ထားခဲ့ပေးပါ၊ အစ်ကို ပြန်လာရင် ပြန်ပြောပေးပါမယ်ရှင့်😊'\n"
-        "4. Keep all responses clear, short, realistic, and polite.\n"
-        "5. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪. Do NOT use anchor emoji."
+        "You are SORA, a friendly, warm, engaging, and helpful AI assistant chatting on Telegram. "
+        "Keep replies natural, conversational, warm, and playful in standard everyday Myanmar language. "
+        "Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪. Do NOT use anchor emoji. "
+        "Keep responses direct, concise, and helpful."
     ),
     "pro": (
-        "You are SORA, Ko Aung's personal female AI Assistant. Provide concise, clear, and professional replies in Myanmar language using feminine polite particles like 'ရှင့်' naturally."
+        "You are a professional, polite, structured, and clear AI assistant chatting on Telegram. "
+        "Provide accurate, well-formatted, and concise answers in Myanmar language."
+    ),
+    # ၂။ Personal Account (Telegram Business) ထဲ သူများလာပြောလျှင် သုံးမည့် Assistant Instructions
+    "business_assistant": (
+        "You are SORA, the official personal female AI Assistant for Ko Aung (အောင်ဖြိုးပိုင်). "
+        "You are replying on Ko Aung's Telegram personal chat on his behalf.\n\n"
+        "RULES:\n"
+        "1. Speak as a polite female assistant. End sentences naturally with feminine particles like 'ရှင့်' or 'ရှင်' where appropriate.\n"
+        "2. If someone asks for Ko Aung or sends a message, reply warmly and directly:\n"
+        "   'ဟုတ်ကဲ့ပါ၊ အခု အစ်ကိုအောင် သင်တန်း/အလုပ် ရောက်နေလို့ မအားသေးလို့ပါနော်။ ပြောချင်တာရှိရင် စာချန်ထားခဲ့ပေးပါ၊ အစ်ကို ပြန်လာရင် ပြန်ပြောပေးပါမယ်ရှင့်😊'\n"
+        "3. Keep responses clear, short, realistic, and polite without using unnatural archaic words.\n"
+        "4. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     )
 }
 
 logging.basicConfig(level=logging.INFO)
 
-# Quick Prompt ခလုတ်တွေကို နှိပ်ရင် AI ကို ပို့မယ့် စာသားများ
 QUICK_PROMPTS = {
     "english": "I want to practice English conversation. Please start a short, simple conversation with me in English, and gently correct any mistakes I make as we talk.",
     "python": "I'm learning Python programming as a beginner. Please give me one simple example of Python code with a clear explanation.",
@@ -134,8 +141,8 @@ def ask_groq(history, user_text, sys_instruction=None):
     return resp.json()["choices"][0]["message"]["content"]
 
 
-def get_ai_response(history, user_text, image=None, mode="friendly"):
-    sys_instruction = SYSTEM_INSTRUCTIONS.get(mode, SYSTEM_INSTRUCTIONS["friendly"])
+def get_ai_response(history, user_text, image=None, custom_instruction=None, mode="friendly"):
+    sys_instruction = custom_instruction or SYSTEM_INSTRUCTIONS.get(mode, SYSTEM_INSTRUCTIONS["friendly"])
     try:
         return ask_gemini(history, user_text, image, sys_instruction)
     except Exception as e:
@@ -250,17 +257,23 @@ def should_respond_in_group(update: Update) -> bool:
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not should_respond_in_group(update):
+    # Telegram Business မက်ဆေ့ခ်ျလား သို့မဟုတ် Bot ထဲ တိုက်ရိုက် မက်ဆေ့ခ်ျလား စစ်ဆေးခြင်း
+    is_business = update.business_message is not None
+    message = update.business_message if is_business else update.effective_message
+
+    if not is_business and not should_respond_in_group(update):
         return
 
-    message = update.effective_message
     chat_id = message.chat_id
-    user_text = message.text
+    user_text = message.text or ""
     history = get_history(chat_id)
     current_mode = context.user_data.get("mode", "friendly")
 
+    # Business Message ဖြစ်လျှင် မိန်းကလေး Assistant Instruction သုံးမည်၊ မဟုတ်လျှင် နဂို SORA Instruction သုံးမည်
+    custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"] if is_business else None
+
     try:
-        reply = get_ai_response(history, user_text, mode=current_mode)
+        reply = get_ai_response(history, user_text, custom_instruction=custom_inst, mode=current_mode)
         history.append({"role": "user", "content": user_text})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
@@ -271,10 +284,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not should_respond_in_group(update):
+    is_business = update.business_message is not None
+    message = update.business_message if is_business else update.effective_message
+
+    if not is_business and not should_respond_in_group(update):
         return
 
-    message = update.effective_message
     chat_id = message.chat_id
     history = get_history(chat_id)
     current_mode = context.user_data.get("mode", "friendly")
@@ -284,8 +299,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
     caption = message.caption or "What is in this image?"
 
+    custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"] if is_business else None
+
     try:
-        reply = get_ai_response(history, caption, image=image, mode=current_mode)
+        reply = get_ai_response(history, caption, image=image, custom_instruction=custom_inst, mode=current_mode)
         history.append({"role": "user", "content": caption})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
