@@ -37,6 +37,13 @@ SYSTEM_INSTRUCTIONS = {
 
 logging.basicConfig(level=logging.INFO)
 
+# Quick Prompt ခလုတ်တွေကို နှိပ်ရင် AI ကို ပို့မယ့် စာသားများ
+QUICK_PROMPTS = {
+    "english": "I want to practice English conversation. Please start a short, simple conversation with me in English, and gently correct any mistakes I make as we talk.",
+    "python": "I'm learning Python programming as a beginner. Please give me one simple example of Python code with a clear explanation.",
+    "summary": "Please explain briefly how you can help me summarize text, then wait for me to paste something I want summarized.",
+}
+
 _memory_histories = {}
 BOT_USERNAME = None
 MAX_HISTORY_MESSAGES = 20
@@ -199,8 +206,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elif data.startswith("prompt_"):
         prompt_type = data.replace("prompt_", "")
-        msg = f"💡 Prompt ရွေးချယ်လိုက်ပါပြီ (`{prompt_type}`)။ သိလိုသည်များကို စတင်မေးမြန်းနိုင်ပါပြီ!"
-        await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
+        starter_text = QUICK_PROMPTS.get(prompt_type, "Hello!")
+        await query.edit_message_text("⏳ ခဏစောင့်ပါ...", reply_markup=get_main_keyboard())
+
+        history = get_history(chat_id)
+        current_mode = context.user_data.get("mode", "friendly")
+        try:
+            reply = get_ai_response(history, starter_text, mode=current_mode)
+            history.append({"role": "user", "content": starter_text})
+            history.append({"role": "assistant", "content": reply})
+            save_history(chat_id, history)
+            await query.message.reply_text(reply)
+        except Exception as e:
+            logging.error(f"Error: {e}")
+            await query.message.reply_text(f"⚠️ Error: {str(e)[:300]}")
 
     elif data.startswith("mode_"):
         selected_mode = data.replace("mode_", "")
