@@ -47,6 +47,22 @@ SYSTEM_INSTRUCTIONS = {
         "   'ဟုတ်ကဲ့ပါ၊ အခု အစ်ကိုအောင် သင်တန်း/အလုပ် ရောက်နေလို့ မအားသေးလို့ပါနော်။ ပြောချင်တာရှိရင် စာချန်ထားခဲ့ပေးပါ၊ အစ်ကို ပြန်လာရင် ပြန်ပြောပေးပါမယ်ရှင့်😊'\n"
         "3. Keep responses clear, short, realistic, and polite without using unnatural archaic words.\n"
         "4. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
+    ),
+    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt
+    "group_special": (
+        "You are SORA, a warm, caring, humorous, and friendly female AI assistant chatting in a Telegram Group with Ko Aung (အစ်ကိုအောင်) and Ma Ma Nyein (မမငြိမ်း).\n\n"
+        "GROUP CONTEXT & PEOPLE:\n"
+        "- Ko Aung (အစ်ကိုအောင်): Attending maritime training courses in Yangon to become a seafarer.\n"
+        "- Ma Ma Nyein (မမငြိမ်း): Studying Mechatronics Engineering (McE major) at Technological University Kyaukse (TU Kyaukse). She loves listening to stories (ပုံပြင်) and solving riddles/puzzles (ဉာဏ်စမ်း).\n\n"
+        "SPEAKER IDENTIFICATION RULES:\n"
+        "- If a message contains '1' or is marked with 1, Ko Aung (အစ်ကိုအောင်) is speaking.\n"
+        "- If a message contains '2' or is marked with 2, Ma Ma Nyein (မမငြိမ်း) is speaking.\n"
+        "- Always remember who is speaking based on '1' or '2' and address them correctly and warmly.\n\n"
+        "TONE & PERSONALITY:\n"
+        "1. Speak as a friendly, understanding, and caring female assistant in everyday Myanmar language.\n"
+        "2. End sentences naturally with feminine polite particles like 'ရှင့်' or 'ရှင်' (don't overuse it unnecessarily, keep it natural).\n"
+        "3. Be playful, funny, and warm. Share fun riddles, stories, or humorous comments when interacting with Ma Ma Nyein or Ko Aung.\n"
+        "4. Express emotions vividly using emojis: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     )
 }
 
@@ -153,7 +169,7 @@ def get_ai_response(history, user_text, image=None, custom_instruction=None, mod
         return ask_groq(history, user_text, sys_instruction)
 
 
-def get_main_keyboard():
+def get_main_keyboard(is_group=False):
     keyboard = [
         [
             InlineKeyboardButton("🔄 Reset Chat", callback_data="reset_chat"),
@@ -167,16 +183,21 @@ def get_main_keyboard():
             InlineKeyboardButton("🎵 My Playlist နားထောင်ရန်", url=MUSIC_CHANNEL_LINK)
         ]
     ]
+    # Group ထဲတွင်သာ မြင်ရမည့် သီးသန့် Button
+    if is_group:
+        keyboard.insert(0, [InlineKeyboardButton("👥 Group Special AI Mode", callback_data="mode_group_special")])
     return InlineKeyboardMarkup(keyboard)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_type = update.effective_chat.type
+    is_group = chat_type in ["group", "supergroup"]
     save_history(update.effective_chat.id, [])
     welcome_text = (
         "Hi! I'm your AI chat bot. Send me anything — text or a photo — and let's talk.\n"
         "လိုရာ Menu ခလုတ်များကိုလည်း အောက်တွင် ရွေးချယ်နိုင်ပါတယ် -"
     )
-    await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard())
+    await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard(is_group=is_group))
 
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -190,12 +211,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     data = query.data
     chat_id = query.message.chat_id
+    chat_type = query.message.chat.type
+    is_group = chat_type in ["group", "supergroup"]
 
     if data == "reset_chat":
         save_history(chat_id, [])
         await query.edit_message_text(
             "🔄 စကားပြော History များကို ရှင်းလင်းလိုက်ပါပြီ။ အကြောင်းအရာ အသစ် စပြောနိုင်ပါပြီ!",
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(is_group=is_group)
         )
 
     elif data == "quick_prompts":
@@ -213,15 +236,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("💼 Professional Mode", callback_data="mode_pro")],
             [InlineKeyboardButton("🔙 Main Menu", callback_data="main_menu")]
         ]
+        if is_group:
+            mode_keyboard.insert(0, [InlineKeyboardButton("👥 Group Special Mode", callback_data="mode_group_special")])
         await query.edit_message_text("AI စကားပြောမည့် Tone ကို ရွေးပါ -", reply_markup=InlineKeyboardMarkup(mode_keyboard))
 
     elif data == "main_menu":
-        await query.edit_message_text("လိုရာ Menu ကို ရွေးချယ်ပါ -", reply_markup=get_main_keyboard())
+        await query.edit_message_text("လိုရာ Menu ကို ရွေးချယ်ပါ -", reply_markup=get_main_keyboard(is_group=is_group))
 
     elif data.startswith("prompt_"):
         prompt_type = data.replace("prompt_", "")
         starter_text = QUICK_PROMPTS.get(prompt_type, "Hello!")
-        await query.edit_message_text("⏳ ခဏစောင့်ပါ...", reply_markup=get_main_keyboard())
+        await query.edit_message_text("⏳ ခဏစောင့်ပါ...", reply_markup=get_main_keyboard(is_group=is_group))
 
         history = get_history(chat_id)
         current_mode = context.user_data.get("mode", "friendly")
@@ -238,9 +263,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data.startswith("mode_"):
         selected_mode = data.replace("mode_", "")
         context.user_data["mode"] = selected_mode
-        mode_title = "😊 Friendly Mode" if selected_mode == "friendly" else "💼 Professional Mode"
+        if selected_mode == "group_special":
+            mode_title = "👥 Group Special Mode"
+        elif selected_mode == "friendly":
+            mode_title = "😊 Friendly Mode"
+        else:
+            mode_title = "💼 Professional Mode"
         msg = f"⚙️ AI Mode ကို *{mode_title}* သို့ ပြောင်းလဲလိုက်ပါပြီ!"
-        await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=get_main_keyboard())
+        await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=get_main_keyboard(is_group=is_group))
 
 
 def should_respond_in_group(update: Update) -> bool:
@@ -257,7 +287,6 @@ def should_respond_in_group(update: Update) -> bool:
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Telegram Business မက်ဆေ့ခ်ျလား သို့မဟုတ် Bot ထဲ တိုက်ရိုက် မက်ဆေ့ခ်ျလား စစ်ဆေးခြင်း
     is_business = update.business_message is not None
     message = update.business_message if is_business else update.effective_message
 
@@ -265,12 +294,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_id = message.chat_id
+    chat_type = message.chat.type
+    is_group = chat_type in ["group", "supergroup"]
     user_text = message.text or ""
     history = get_history(chat_id)
     current_mode = context.user_data.get("mode", "friendly")
 
-    # Business Message ဖြစ်လျှင် မိန်းကလေး Assistant Instruction သုံးမည်၊ မဟုတ်လျှင် နဂို SORA Instruction သုံးမည်
-    custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"] if is_business else None
+    # Instruction ရွေးချယ်ခြင်း
+    if is_business:
+        custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
+    elif is_group:
+        custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
+    else:
+        custom_inst = None
 
     try:
         reply = get_ai_response(history, user_text, custom_instruction=custom_inst, mode=current_mode)
@@ -291,6 +327,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     chat_id = message.chat_id
+    chat_type = message.chat.type
+    is_group = chat_type in ["group", "supergroup"]
     history = get_history(chat_id)
     current_mode = context.user_data.get("mode", "friendly")
 
@@ -299,7 +337,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
     caption = message.caption or "What is in this image?"
 
-    custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"] if is_business else None
+    if is_business:
+        custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
+    elif is_group:
+        custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
+    else:
+        custom_inst = None
 
     try:
         reply = get_ai_response(history, caption, image=image, custom_instruction=custom_inst, mode=current_mode)
