@@ -20,13 +20,16 @@ PORT = int(os.environ.get("PORT", 10000))
 # ----------------- ပြင်ဆင်ပြီးသား Link များနှင့် Username -----------------
 ADMIN_USERNAME = "Aungphyopaing7"
 MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
+
+# Tg Automation ထဲ တိုက်ရိုက် ပြန်ပို့ပေးချင်သည့် သီချင်း (Telegram File ID သို့မဟုတ် MP3 Direct Link ထည့်ရန်)
+SONG_URL_OR_FILE_ID = os.environ.get("SONG_URL_OR_FILE_ID", "YOUR_AUDIO_FILE_ID_OR_URL_HERE")
 # -------------------------------------------------------------------------
 
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Chat နေရာပေါ်မူတည်၍ ခွဲခြားထားသော System Instructions
 SYSTEM_INSTRUCTIONS = {
-    # ၁။ Bot ထဲမှာ တိုက်ရိုက်ပြောလျှင် သုံးမည့် Default Friendly Instructions (နွေးထွေး၊ ကြင်နာ၊ ယုယုယယ)
+    # ၁။ Bot ထဲမှာ တိုက်ရိုက်ပြောလျှင် သုံးမည့် Default Friendly Instructions
     "friendly": (
         "You are SORA, a deeply warm, caring, affectionate, and friendly AI assistant chatting on Telegram. "
         "Your tone must be exceptionally gentle, tender, loving, and supportive (နွေးနွေးထွေးထွေး ကြင်ကြင်နာနာ ယုယုယယ) in standard everyday Myanmar language.\n\n"
@@ -40,13 +43,13 @@ SYSTEM_INSTRUCTIONS = {
         "You are a professional, polite, structured, and clear AI assistant chatting on Telegram. "
         "Provide accurate, well-formatted, and concise answers in Myanmar language."
     ),
-    # ၂။ Personal Account (Telegram Business) ထဲ သူများလာပြောလျှင် သုံးမည့် Assistant Instructions (ပြင်ဆင်ပြီး)
+    # ၂။ Personal Account (Telegram Business) ထဲ သူများလာပြောလျှင် သုံးမည့် Assistant Instructions
     "business_assistant": (
         "You are SORA, the official personal female AI Assistant for Ko Aung (အောင်ဖြိုးပိုင်). "
         "You are replying on Ko Aung's Telegram personal chat on his behalf.\n\n"
         "RULES:\n"
         "1. Speak as a polite and balanced female assistant. Use 'ဟုတ်ကဲ့ပါ ရှင့်' or 'ရှင့်' naturally.\n"
-        "2. STRICTLY DO NOT use words like 'ကိုကိုတို့' or 'မမတို့'. Keep the tone balanced, clear, and polite (အရမ်းကြီး သိမ်မွေ့လွန်းစရာမလို၊ အနေတော် ယဉ်ကျေးရမည်) without being overly sweet.\n"
+        "2. STRICTLY DO NOT use words like 'ကိုကိုတို့' or 'မမတို့'. Keep the tone balanced, clear, and polite without being overly sweet.\n"
         "3. If someone asks for Ko Aung or sends a message, reply directly and politely:\n"
         "   'ဟုတ်ကဲ့ပါ ရှင့်၊ အခု အစ်ကိုအောင် သင်တန်း/အလုပ် ရောက်နေလို့ မအားသေးလို့ပါနော်။ ပြောချင်တာရှိရင် စာချန်ထားခဲ့ပေးပါ၊ အစ်ကို ပြန်လာရင် ပြန်ပြောပေးပါမယ်ရှင့်😊'\n"
         "4. Keep responses clear, short, realistic, and direct.\n"
@@ -187,7 +190,6 @@ def get_main_keyboard(is_group=False):
             InlineKeyboardButton("🎵 My Playlist နားထောင်ရန်", url=MUSIC_CHANNEL_LINK)
         ]
     ]
-    # Group ထဲတွင်သာ မြင်ရမည့် သီးသန့် Button
     if is_group:
         keyboard.insert(0, [InlineKeyboardButton("👥 Group Special AI Mode", callback_data="mode_group_special")])
     return InlineKeyboardMarkup(keyboard)
@@ -290,6 +292,25 @@ def should_respond_in_group(update: Update) -> bool:
     return False
 
 
+# ----------------- သီချင်း Audio File ID ထုတ်ပေးမည့် Handler -----------------
+async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.effective_message
+    if message.audio:
+        file_id = message.audio.file_id
+        file_name = message.audio.file_name or "Audio File"
+        
+        logging.info(f"🎵 Audio File ID ({file_name}): {file_id}")
+        
+        reply_text = (
+            f"🎵 *Audio File ID ရရှိပါပြီ!*\n\n"
+            f"📁 *FileName:* `{file_name}`\n"
+            f"🔑 *File ID:* `{file_id}`\n\n"
+            f"_(အထက်ပါ File ID စာသားကို နှိပ်ပြီး Copy ကူး၍ `SONG_URL_OR_FILE_ID` နေရာမှာ အသုံးပြုနိုင်ပါတယ်ရှင့်)_"
+        )
+        await message.reply_text(reply_text, parse_mode="Markdown")
+# ----------------------------------------------------------------------------
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_business = update.business_message is not None
     message = update.business_message if is_business else update.effective_message
@@ -304,7 +325,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     history = get_history(chat_id)
     current_mode = context.user_data.get("mode", "friendly")
 
-    # Instruction ရွေးချယ်ခြင်း
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
     elif is_group:
@@ -317,7 +337,20 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history.append({"role": "user", "content": user_text})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
+        
+        # ၁။ AI ရဲ့ စာသား အကြောင်းပြန်ချက် ပို့ပေးမည်
         await message.reply_text(reply)
+
+        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းပါ တိုက်ရိုက် ပြန်ပို့ပေးမည်
+        if is_business and SONG_URL_OR_FILE_ID and SONG_URL_OR_FILE_ID != "YOUR_AUDIO_FILE_ID_OR_URL_HERE":
+            try:
+                await message.reply_audio(
+                    audio=SONG_URL_OR_FILE_ID,
+                    caption="🎵 အစ်ကိုအောင် မအားသေးခင် သီချင်းလေး နားထောင်ထားပေးပါနော် 🎧✨"
+                )
+            except Exception as audio_err:
+                logging.error(f"Audio send failed: {audio_err}")
+
     except Exception as e:
         logging.error(f"Error: {e}")
         await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
@@ -353,7 +386,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history.append({"role": "user", "content": caption})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
+
+        # ၁။ AI စာသား ပို့ပေးမည်
         await message.reply_text(reply)
+
+        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းပါ တိုက်ရိုက် ပြန်ပို့ပေးမည်
+        if is_business and SONG_URL_OR_FILE_ID and SONG_URL_OR_FILE_ID != "YOUR_AUDIO_FILE_ID_OR_URL_HERE":
+            try:
+                await message.reply_audio(
+                    audio=SONG_URL_OR_FILE_ID,
+                    caption="🎵 အစ်ကိုအောင် မအားသေးခင် သီချင်းလေး နားထောင်ထားပေးပါနော် 🎧✨"
+                )
+            except Exception as audio_err:
+                logging.error(f"Audio send failed: {audio_err}")
+
     except Exception as e:
         logging.error(f"Error: {e}")
         await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
@@ -374,6 +420,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CallbackQueryHandler(button_handler))
+    app.add_handler(MessageHandler(filters.AUDIO, handle_audio))  # Audio File ID ထုတ်ပေးရန်
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
