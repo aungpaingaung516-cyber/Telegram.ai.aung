@@ -3,8 +3,8 @@ import io
 import json
 import logging
 import threading
-import requests
 import random
+import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import google.generativeai as genai
 from PIL import Image
@@ -23,10 +23,11 @@ ADMIN_USERNAME = "Aungphyopaing7"
 MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
 
 # Tg Automation ထဲ တိုက်ရိုက် ပြန်ပို့ပေးချင်သည့် သီချင်း File ID များ
-SONGS_LIST = [
+SONG_FILE_IDS = [
     "CQACAgIAAxkBAAICwGqpSqItHPFZWrLdkVMyUnyJ2fRAAAJFPAACMlFJSqNuOnWB4E0gPQQ",
-    "CQACAgUAAxkBAAICwmqpSwuQtyVxVszEGExORyzP7BlcAAIlKgACFRLpVBYEQUhVl30UPQQ",
-    "CQACAgQAAxkBAAICxGqpS228jJ-w1tnHhPHbVQkyKsfQAAK5MwACDxARUu7Fjr7FPhwUPQQ"
+    "CQACAgIAAxkBAAICyGqpTDSyYqQ0m80MFsFNj8FX0Y_aAAIzLgAClup4SBHc1wWe206OPQQ",
+    "CQACAgIAAxkBAAICymqpTOxosctg5g1qkBS1vIW65VXBAAJkrgACtoFwSuB6a2KHz-_XPQQ",
+    "CQACAgIAAxkBAAICzGqpTSEH7XzEGh2i2CE5-nIAAeZxVQAC-oAAAmx76UrMGfrPSdCafz0E"
 ]
 # -------------------------------------------------------------------------
 
@@ -297,7 +298,6 @@ def should_respond_in_group(update: Update) -> bool:
     return False
 
 
-# ----------------- သီချင်း Audio File ID ထုတ်ပေးမည့် Handler -----------------
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
     if message.audio:
@@ -313,7 +313,6 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"_(အထက်ပါ File ID စာသားကို နှိပ်ပြီး Copy ကူး၍ အသုံးပြုနိုင်ပါတယ်ရှင့်)_"
         )
         await message.reply_text(reply_text, parse_mode="Markdown")
-# ----------------------------------------------------------------------------
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -346,13 +345,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ၁။ AI ရဲ့ စာသား အကြောင်းပြန်ချက် ပို့ပေးမည်
         await message.reply_text(reply)
 
-        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းထဲမှ တစ်ပုဒ်ကို random ရွေးပြီး တိုက်ရိုက် ပြန်ပို့ပေးမည်
-        if is_business and SONGS_LIST:
+        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းများထဲမှ Random ၁ ပုဒ် ရွေး၍ ပြန်ပို့ပေးမည်
+        if is_business and SONG_FILE_IDS:
+            selected_song = random.choice(SONG_FILE_IDS)
             try:
-                selected_song = random.choice(SONGS_LIST)
                 await message.reply_audio(
                     audio=selected_song,
-                    caption="🎵 အစ်ကိုအောင် မအားသေးခင် သီချင်းလေး နားထောင်ထားပေးပါနော် 🎧✨"
+                    caption="🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် အချိန်ရမယ်ဆိုရင် သီချင်းလေး နားထောင်သွားပါအုန်းနော်😉 🎧✨"
                 )
             except Exception as audio_err:
                 logging.error(f"Audio send failed: {audio_err}")
@@ -396,13 +395,13 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ၁။ AI စာသား ပို့ပေးမည်
         await message.reply_text(reply)
 
-        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းထဲမှ တစ်ပုဒ်ကို random ရွေးပြီး တိုက်ရိုက် ပြန်ပို့ပေးမည်
-        if is_business and SONGS_LIST:
+        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းများထဲမှ Random ၁ ပုဒ် ရွေး၍ ပြန်ပို့ပေးမည်
+        if is_business and SONG_FILE_IDS:
+            selected_song = random.choice(SONG_FILE_IDS)
             try:
-                selected_song = random.choice(SONGS_LIST)
                 await message.reply_audio(
                     audio=selected_song,
-                    caption="🎵 အစ်ကိုအောင် မအားသေးခင် သီချင်းလေး နားထောင်ထားပေးပါနော် 🎧✨"
+                    caption="🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် အချိန်ရမယ်ဆိုရင် သီချင်းလေး နားထောင်သွားပါအုန်းနော်😉 🎧✨"
                 )
             except Exception as audio_err:
                 logging.error(f"Audio send failed: {audio_err}")
