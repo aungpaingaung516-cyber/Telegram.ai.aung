@@ -4,6 +4,7 @@ import json
 import logging
 import threading
 import requests
+import random
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import google.generativeai as genai
 from PIL import Image
@@ -21,8 +22,12 @@ PORT = int(os.environ.get("PORT", 10000))
 ADMIN_USERNAME = "Aungphyopaing7"
 MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
 
-# Tg Automation ထဲ တိုက်ရိုက် ပြန်ပို့ပေးချင်သည့် သီချင်း (Telegram File ID သို့မဟုတ် MP3 Direct Link ထည့်ရန်)
-SONG_URL_OR_FILE_ID = os.environ.get("SONG_URL_OR_FILE_ID", "YOUR_AUDIO_FILE_ID_OR_URL_HERE")
+# Tg Automation ထဲ တိုက်ရိုက် ပြန်ပို့ပေးချင်သည့် သီချင်း File ID များ
+SONGS_LIST = [
+    "CQACAgIAAxkBAAICwGqpSqItHPFZWrLdkVMyUnyJ2fRAAAJFPAACMlFJSqNuOnWB4E0gPQQ",
+    "CQACAgUAAxkBAAICwmqpSwuQtyVxVszEGExORyzP7BlcAAIlKgACFRLpVBYEQUhVl30UPQQ",
+    "CQACAgQAAxkBAAICxGqpS228jJ-w1tnHhPHbVQkyKsfQAAK5MwACDxARUu7Fjr7FPhwUPQQ"
+]
 # -------------------------------------------------------------------------
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -305,7 +310,7 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🎵 *Audio File ID ရရှိပါပြီ!*\n\n"
             f"📁 *FileName:* `{file_name}`\n"
             f"🔑 *File ID:* `{file_id}`\n\n"
-            f"_(အထက်ပါ File ID စာသားကို နှိပ်ပြီး Copy ကူး၍ `SONG_URL_OR_FILE_ID` နေရာမှာ အသုံးပြုနိုင်ပါတယ်ရှင့်)_"
+            f"_(အထက်ပါ File ID စာသားကို နှိပ်ပြီး Copy ကူး၍ အသုံးပြုနိုင်ပါတယ်ရှင့်)_"
         )
         await message.reply_text(reply_text, parse_mode="Markdown")
 # ----------------------------------------------------------------------------
@@ -341,11 +346,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ၁။ AI ရဲ့ စာသား အကြောင်းပြန်ချက် ပို့ပေးမည်
         await message.reply_text(reply)
 
-        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းပါ တိုက်ရိုက် ပြန်ပို့ပေးမည်
-        if is_business and SONG_URL_OR_FILE_ID and SONG_URL_OR_FILE_ID != "YOUR_AUDIO_FILE_ID_OR_URL_HERE":
+        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းထဲမှ တစ်ပုဒ်ကို random ရွေးပြီး တိုက်ရိုက် ပြန်ပို့ပေးမည်
+        if is_business and SONGS_LIST:
             try:
+                selected_song = random.choice(SONGS_LIST)
                 await message.reply_audio(
-                    audio=SONG_URL_OR_FILE_ID,
+                    audio=selected_song,
                     caption="🎵 အစ်ကိုအောင် မအားသေးခင် သီချင်းလေး နားထောင်ထားပေးပါနော် 🎧✨"
                 )
             except Exception as audio_err:
@@ -390,11 +396,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ၁။ AI စာသား ပို့ပေးမည်
         await message.reply_text(reply)
 
-        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းပါ တိုက်ရိုက် ပြန်ပို့ပေးမည်
-        if is_business and SONG_URL_OR_FILE_ID and SONG_URL_OR_FILE_ID != "YOUR_AUDIO_FILE_ID_OR_URL_HERE":
+        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းထဲမှ တစ်ပုဒ်ကို random ရွေးပြီး တိုက်ရိုက် ပြန်ပို့ပေးမည်
+        if is_business and SONGS_LIST:
             try:
+                selected_song = random.choice(SONGS_LIST)
                 await message.reply_audio(
-                    audio=SONG_URL_OR_FILE_ID,
+                    audio=selected_song,
                     caption="🎵 အစ်ကိုအောင် မအားသေးခင် သီချင်းလေး နားထောင်ထားပေးပါနော် 🎧✨"
                 )
             except Exception as audio_err:
@@ -420,7 +427,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CallbackQueryHandler(button_handler))
-    app.add_handler(MessageHandler(filters.AUDIO, handle_audio))  # Audio File ID ထုတ်ပေးရန်
+    app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
