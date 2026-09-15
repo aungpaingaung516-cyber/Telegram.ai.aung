@@ -3,7 +3,6 @@ import io
 import json
 import logging
 import threading
-import random
 import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import google.generativeai as genai
@@ -22,7 +21,7 @@ PORT = int(os.environ.get("PORT", 10000))
 ADMIN_USERNAME = "Aungphyopaing7"
 MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
 
-# Tg Automation ထဲ တိုက်ရိုက် ပြန်ပို့ပေးချင်သည့် သီချင်း File ID များ
+# Tg Automation ထဲ အစဉ်လိုက် တိုက်ရိုက် ပြန်ပို့ပေးချင်သည့် သီချင်း File ID များ
 SONG_FILE_IDS = [
     "CQACAgIAAxkBAAICwGqpSqItHPFZWrLdkVMyUnyJ2fRAAAJFPAACMlFJSqNuOnWB4E0gPQQ",
     "CQACAgIAAxkBAAICyGqpTDSyYqQ0m80MFsFNj8FX0Y_aAAIzLgAClup4SBHc1wWe206OPQQ",
@@ -88,6 +87,7 @@ QUICK_PROMPTS = {
 }
 
 _memory_histories = {}
+_memory_sent_songs = {}
 BOT_USERNAME = None
 MAX_HISTORY_MESSAGES = 20
 
@@ -106,6 +106,7 @@ def run_health_server():
     HTTPServer(("0.0.0.0", PORT), HealthHandler).serve_forever()
 
 
+# Chat History ထိန်းသိမ်းခြင်း
 def get_history(chat_id):
     if not UPSTASH_URL:
         return _memory_histories.get(chat_id, [])
@@ -136,6 +137,38 @@ def save_history(chat_id, history):
         )
     except Exception as e:
         logging.error(f"Upstash set failed: {e}")
+
+
+# ပို့ပြီးသား သီချင်းစာရင်း မှတ်သားခြင်း
+def get_sent_songs(chat_id):
+    if not UPSTASH_URL:
+        return _memory_sent_songs.get(chat_id, [])
+    try:
+        resp = requests.get(
+            f"{UPSTASH_URL}/get/sentsongs:{chat_id}",
+            headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"},
+            timeout=10,
+        )
+        result = resp.json().get("result")
+        return json.loads(result) if result else []
+    except Exception as e:
+        logging.error(f"Upstash get sent_songs failed: {e}")
+        return []
+
+
+def save_sent_songs(chat_id, sent_list):
+    if not UPSTASH_URL:
+        _memory_sent_songs[chat_id] = sent_list
+        return
+    try:
+        requests.post(
+            f"{UPSTASH_URL}/set/sentsongs:{chat_id}",
+            headers={"Authorization": f"Bearer {UPSTASH_TOKEN}"},
+            data=json.dumps(sent_list),
+            timeout=10,
+        )
+    except Exception as e:
+        logging.error(f"Upstash set sent_songs failed: {e}")
 
 
 def ask_gemini(history, user_text, image=None, sys_instruction=None):
@@ -205,6 +238,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = update.effective_chat.type
     is_group = chat_type in ["group", "supergroup"]
     save_history(update.effective_chat.id, [])
+    save_sent_songs(update.effective_chat.id, [])  # Reset စာရင်း ပြန်စရန်
     welcome_text = (
         "Hi! I'm your AI chat bot. Send me anything — text or a photo — and let's talk.\n"
         "လိုရာ Menu ခလုတ်များကိုလည်း အောက်တွင် ရွေးချယ်နိုင်ပါတယ် -"
@@ -214,6 +248,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def reset(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_history(update.effective_chat.id, [])
+    save_sent_songs(update.effective_chat.id, [])
     await update.message.reply_text("Conversation cleared. Let's start fresh!")
 
 
@@ -228,8 +263,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if data == "reset_chat":
         save_history(chat_id, [])
+        save_sent_songs(chat_id, [])
         await query.edit_message_text(
-            "🔄 စကားပြော History များကို ရှင်းလင်းလိုက်ပါပြီ။ အကြောင်းအရာ အသစ် စပြောနိုင်ပါပြီ!",
+            "🔄 စကားပြော History များနှင့် ပို့ထားသော သီချင်းမှတ်တမ်းများကို ရှင်းလင်းလိုက်ပါပြီ!",
             reply_markup=get_main_keyboard(is_group=is_group)
         )
 
@@ -315,6 +351,28 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(reply_text, parse_mode="Markdown")
 
 
+# သီချင်းများကို စာရင်းပါအတိုင်း အစဉ်လိုက် (တစ်ပုဒ်ပြီးတစ်ပုဒ်) ပို့ပေးမည့် Helper Function
+async def send_next_song_if_available(message, chat_id):
+    sent_list = get_sent_songs(chat_id)
+    sent_count = len(sent_list)
+
+    # ပို့ပြီးသား အရေအတွက်သည် စာရင်းရှိ သီချင်းအရေအတွက်ထက် နည်းနေသေးပါက နောက်တစ်ပုဒ်ကို အစဉ်လိုက် ပို့မည်
+    if sent_count < len(SONG_FILE_IDS):
+        next_song = SONG_FILE_IDS[sent_count]
+        try:
+            await message.reply_audio(
+                audio=next_song,
+                caption="🎵 အစ်ကိုအောင် မအားသေးခင် သီချင်းလေး နားထောင်ထားပေးပါနော် 🎧✨"
+            )
+            # ပို့ပြီးသွားပါက မှတ်တမ်းထဲ ထည့်သွင်းခြင်း
+            sent_list.append(next_song)
+            save_sent_songs(chat_id, sent_list)
+        except Exception as audio_err:
+            logging.error(f"Audio send failed: {audio_err}")
+    else:
+        logging.info(f"All {len(SONG_FILE_IDS)} songs have already been sent to chat_id {chat_id}. Skipping audio.")
+
+
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_business = update.business_message is not None
     message = update.business_message if is_business else update.effective_message
@@ -345,16 +403,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ၁။ AI ရဲ့ စာသား အကြောင်းပြန်ချက် ပို့ပေးမည်
         await message.reply_text(reply)
 
-        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းများထဲမှ Random ၁ ပုဒ် ရွေး၍ ပြန်ပို့ပေးမည်
+        # ၂။ Business Chat Automation ဖြစ်လျှင် အစဉ်လိုက်အတိုင်း သီချင်း ပို့ပေးမည်
         if is_business and SONG_FILE_IDS:
-            selected_song = random.choice(SONG_FILE_IDS)
-            try:
-                await message.reply_audio(
-                    audio=selected_song,
-                    caption="🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် အချိန်ရမယ်ဆိုရင် သီချင်းလေး နားထောင်သွားပါအုန်းနော်😉 🎧✨"
-                )
-            except Exception as audio_err:
-                logging.error(f"Audio send failed: {audio_err}")
+            await send_next_song_if_available(message, chat_id)
 
     except Exception as e:
         logging.error(f"Error: {e}")
@@ -395,16 +446,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # ၁။ AI စာသား ပို့ပေးမည်
         await message.reply_text(reply)
 
-        # ၂။ Business Chat Automation ဖြစ်လျှင် သီချင်းများထဲမှ Random ၁ ပုဒ် ရွေး၍ ပြန်ပို့ပေးမည်
+        # ၂။ Business Chat Automation ဖြစ်လျှင် အစဉ်လိုက်အတိုင်း သီချင်း ပို့ပေးမည်
         if is_business and SONG_FILE_IDS:
-            selected_song = random.choice(SONG_FILE_IDS)
-            try:
-                await message.reply_audio(
-                    audio=selected_song,
-                    caption="🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် အချိန်ရမယ်ဆိုရင် သီချင်းလေး နားထောင်သွားပါအုန်းနော်😉 🎧✨"
-                )
-            except Exception as audio_err:
-                logging.error(f"Audio send failed: {audio_err}")
+            await send_next_song_if_available(message, chat_id)
 
     except Exception as e:
         logging.error(f"Error: {e}")
