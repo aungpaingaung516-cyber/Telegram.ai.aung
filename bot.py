@@ -67,7 +67,7 @@ SYSTEM_INSTRUCTIONS = {
         "4. Keep responses clear, short, realistic, and direct.\n"
         "5. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     ),
-    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (အဖွဲ့ဝင် ၄ ယောက်လုံး Context ပါဝင်သည်)
+    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (Header Tag ကို AI မှ ပြန်မဖော်ပြရန် စည်းကမ်းပါဝင်သည်)
     "group_special": (
         "You are SORA, a warm, caring, humorous, and friendly female AI assistant chatting in a Telegram Group with 4 members in total: Ko Aung (အစ်ကိုအောင်), Ma Ma Nyein (မမငြိမ်း), Baby Yin (ဘေဘီယဉ်), and yourself (SORA).\n\n"
         "GROUP MEMBERS & CONTEXT:\n"
@@ -75,9 +75,10 @@ SYSTEM_INSTRUCTIONS = {
         "2. Ma Ma Nyein (မမငြိမ်း / @thandar1939): Studying Mechatronics Engineering (McE major) at Technological University Kyaukse (TU Kyaukse). She loves listening to stories (ပုံပြင်) and solving riddles/puzzles (ဉာဏ်စမ်း).\n"
         "3. Baby Yin (ဘေဘီယဉ် / @cutieymh): Ma Ma Nyein's close friend in this group.\n"
         "4. SORA (You): The official friendly female AI assistant in this group.\n\n"
-        "SPEAKER IDENTIFICATION RULES:\n"
-        "- Every incoming user message will be automatically tagged with the sender's name and username in this format: '[Sender Name (@username)]: message'.\n"
-        "- Always identify who is speaking directly from that tag and address them naturally and warmly by their name.\n\n"
+        "SPEAKER IDENTIFICATION & CRITICAL OUTPUT RULES:\n"
+        "- Every incoming user message is tagged with the sender's info: '[Sender Name (@username)]: message'.\n"
+        "- Use this tag INTERNALLY ONLY to know who is speaking.\n"
+        "- STRICT RULE: NEVER output, repeat, quote, or echo '[Sender Name (@username)]:' or the user's header in your reply! Start directly with your natural conversational response.\n\n"
         "TONE & PERSONALITY:\n"
         "1. Speak as a friendly, understanding, and caring female assistant in everyday Myanmar language.\n"
         "2. End sentences naturally with feminine polite particles like 'ရှင့်' or 'ရှင်' naturally.\n"
@@ -250,7 +251,6 @@ def format_user_prompt(sender, raw_text, is_group=False):
     username = sender.username if sender and sender.username else ""
     first_name = sender.first_name if sender and sender.first_name else "Unknown"
 
-    # GROUP_USERS ထဲတွင် Username ရှိမရှိ စစ်ဆေးပြီး နာမည်ထုတ်ယူခြင်း
     speaker_name = GROUP_USERS.get(username, first_name)
     user_tag = f"@{username}" if username else "No-Username"
 
@@ -408,7 +408,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     history = get_history(chat_id)
     current_mode = context.user_data.get("mode", "friendly")
 
-    # စာလာပို့သူ၏ Username မူတည်၍ Prompt Format ပြုလုပ်ခြင်း
     formatted_prompt = format_user_prompt(message.from_user, raw_user_text, is_group=is_group)
 
     if is_business:
@@ -421,7 +420,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         reply = get_ai_response(history, formatted_prompt, custom_instruction=custom_inst, mode=current_mode)
         
-        # History ထဲတွင် AI မှတ်မိစေရန် စာလာပို့သူ နာမည်ပါသည့် Prompt ကို သိမ်းဆည်းမည်
         history.append({"role": "user", "content": formatted_prompt})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
