@@ -3,6 +3,8 @@ import io
 import json
 import logging
 import threading
+import datetime
+import pytz
 import requests
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import google.generativeai as genai
@@ -67,7 +69,7 @@ SYSTEM_INSTRUCTIONS = {
         "4. Keep responses clear, short, realistic, and direct.\n"
         "5. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     ),
-    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt
+    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (Header Tag မပါရန် စည်းကမ်း ပါဝင်သည်)
     "group_special": (
         "You are SORA, a warm, caring, humorous, and friendly female AI assistant chatting in a Telegram Group with 4 members in total: Ko Aung (အစ်ကိုအောင်), Ma Ma Nyein (မမငြိမ်း), Baby Yin (ဘေဘီယဉ်), and yourself (SORA).\n\n"
         "GROUP MEMBERS & CONTEXT:\n"
@@ -256,9 +258,32 @@ def format_user_prompt(sender, raw_text, is_group=False):
     return f"[{speaker_name} ({user_tag})]: {raw_text}"
 
 
-# ==================== တိုးချဲ့ထားသော ခလုတ်များနှင့် COMMAND HANDLERS (2-6) ====================
+# ==================== AUTOMATIC DAILY GREETING & EXTRA COMMANDS ====================
 
-# Feature 2: ပုံဆွဲပေးသည့် Command (/draw) — Free Pollinations.ai API သုံးထားသည်
+# မနက်တိုင်း မနက် ၇:၀၀ နာရီတွင် အလိုအလျောက် ပို့ပေးမည့် Job Function
+async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
+    prompt = (
+        "ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
+        "စည်းကမ်းချက်များ -\n"
+        "၁။ မနက်တိုင်း မရိုးရအောင် ပုံစံတစ်မျိုးနဲ့ စကားပြောဆိုသူတွေကို ကြည့်ပြီး တိုတိုတုတ်တုတ် နွေးနွေးထွေးထွေး နှုတ်ဆက်ရန်။\n"
+        "၂။ ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အကျဉ်းချုပ် (အပူချိန်နဲ့ မိုး/တိမ်) ကို လိုရင်းပဲ ပါရှိရန်။\n"
+        "၃။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း (ဥပမာ - Have a wonderful day ahead!) ပါရှိရန်။"
+    )
+    try:
+        reply = get_ai_response([], prompt, mode="group_special")
+        
+        # Memory ထဲရှိ Active Chat / Group များအားလုံးသို့ အလိုအလျောက် ပို့ပေးခြင်း
+        for chat_id in list(_memory_histories.keys()):
+            try:
+                await context.bot.send_message(chat_id=chat_id, text=reply)
+            except Exception as err:
+                logging.error(f"Daily greeting send error to {chat_id}: {err}")
+                
+    except Exception as e:
+        logging.error(f"Auto Daily Greeting Error: {e}")
+
+
+# Feature 2: ပုံဆွဲပေးသည့် Command (/draw) — Free Pollinations.ai API
 async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = " ".join(context.args)
     if not prompt:
@@ -289,14 +314,11 @@ async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"📖 *ပုံပြင်တိုလေး*\n\n{reply}", parse_mode="Markdown")
 
 
-# Feature 4: မြန်မာနိုင်ငံ ရာသီဥတုနှင့် နှုတ်ခွန်းဆက်အတို (/weather)
+# လက်စွဲဖြင့် ရာသီဥတု တောင်းခံနိုင်သော Command (/weather)
 async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = (
-        "ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေတိုတိုနဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
-        "စည်းကမ်းချက်များ -\n"
-        "၁။ နှုတ်ခွန်းဆက်တာ တိုတိုတုတ်တုတ်ပဲ ဖြစ်ရမည်။\n"
-        "၂။ မြန်မာနိုင်ငံ ရာသီဥတုအကျဉ်း (အပူချိန်နှင့် မိုး/တိမ်) အတိုချုပ် ပါရမည်။\n"
-        "၃။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း (ဥပမာ - Have a wonderful day ahead!) ပါရမည်။"
+        "ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ တိုတိုနဲ့ နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
+        "အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း ပါရမည်။"
     )
     reply = get_ai_response([], prompt, mode="group_special")
     await update.message.reply_text(reply)
@@ -578,6 +600,15 @@ def main():
     threading.Thread(target=run_health_server, daemon=True).start()
 
     app = Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
+
+    # ------------------ AUTOMATIC DAILY REMINDER (JOB QUEUE) ------------------
+    # မြန်မာစံတော်ချိန် (Asia/Yangon) ဖြင့် မနက် ၇:၀၀ နာရီတွင် မနက်တိုင်း အလိုအလျောက် ပို့ခိုင်းခြင်း
+    tz = pytz.timezone('Asia/Yangon')
+    target_time = datetime.time(hour=7, minute=0, second=0, tzinfo=tz)
+    
+    if app.job_queue:
+        app.job_queue.run_daily(auto_daily_greeting, time=target_time)
+    # -------------------------------------------------------------------------
 
     # Base Handlers
     app.add_handler(CommandHandler("start", start))
