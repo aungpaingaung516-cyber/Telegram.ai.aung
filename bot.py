@@ -69,7 +69,7 @@ SYSTEM_INSTRUCTIONS = {
         "4. Keep responses clear, short, realistic, and direct.\n"
         "5. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     ),
-    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (Header Tag မပါရန် စည်းကမ်း ပါဝင်သည်)
+    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt
     "group_special": (
         "You are SORA, a warm, caring, humorous, and friendly female AI assistant chatting in a Telegram Group with 4 members in total: Ko Aung (အစ်ကိုအောင်), Ma Ma Nyein (မမငြိမ်း), Baby Yin (ဘေဘီယဉ်), and yourself (SORA).\n\n"
         "GROUP MEMBERS & CONTEXT:\n"
@@ -314,7 +314,7 @@ async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(f"📖 *ပုံပြင်တိုလေး*\n\n{reply}", parse_mode="Markdown")
 
 
-# လက်စွဲဖြင့် ရာသီဥတု တောင်းခံနိုင်သော Command (/weather)
+# ရာသီဥတု တောင်းခံနိုင်သော Command (/weather)
 async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = (
         "ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ တိုတိုနဲ့ နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
@@ -373,14 +373,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_group = chat_type in ["group", "supergroup"]
     save_history(update.effective_chat.id, [])
     save_sent_songs(update.effective_chat.id, [])
-    welcome_text = (
-        "Hi! I'm your AI chat bot (SORA). Send me anything — text or a photo — and let's talk.\n\n"
-        "📌 **အသုံးဝင်သော Commands များ -**\n"
-        "🎨 /draw [prompt] - AI ဖြင့် ပုံဆွဲရန်\n"
-        "🧩 /riddle - ဉာဏ်စမ်းမေးခွန်းထုတ်ရန်\n"
-        "📖 /story - ပုံပြင်တို နားထောင်ရန်\n"
-        "☀️ /weather - ရာသီဥတုနှင့် နှုတ်ခွန်းဆက်ရန်\n"
-    )
+
+    # Group ထဲမှာမှ Commands စာရင်းကို ပြသပြီး၊ Main Chat (Private) မှာ Commands မဖော်ပြပါ
+    if is_group:
+        welcome_text = (
+            "Hi! I'm your AI chat bot (SORA). Send me anything — text or a photo — and let's talk. 😊✨\n\n"
+            "📌 **အသုံးဝင်သော Commands များ -**\n"
+            "🎨 /draw [prompt] - AI ဖြင့် ပုံဆွဲရန်\n"
+            "🧩 /riddle - ဉာဏ်စမ်းမေးခွန်းထုတ်ရန်\n"
+            "📖 /story - ပုံပြင်တို နားထောင်ရန်\n"
+            "☀️ /weather - ရာသီဥတုနှင့် နှုတ်ခွန်းဆက်ရန်"
+        )
+    else:
+        welcome_text = "Hi! I'm your AI chat bot (SORA). Send me anything — text or a photo — and let's talk. 😊✨"
+
     await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard(is_group=is_group))
 
 
