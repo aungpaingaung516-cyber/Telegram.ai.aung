@@ -17,9 +17,16 @@ UPSTASH_URL = os.environ.get("UPSTASH_URL")    # persistent storage — optional
 UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
 
-# ----------------- ပြင်ဆင်ပြီးသား Link များနှင့် Username -----------------
+# ----------------- ပြင်ဆင်ပြီးသား Link များ၊ Username များနှင့် Group အဖွဲ့ဝင်များ -----------------
 ADMIN_USERNAME = "Aungphyopaing7"
 MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
+
+# Group ထဲရှိ အဖွဲ့ဝင်များ၏ Telegram Usernames Matching
+GROUP_USERS = {
+    "Aungphyopaing7": "အစ်ကိုအောင်",
+    "thandar1939": "မမငြိမ်း",
+    "cutieymh": "ဘေဘီယဉ်"
+}
 
 # Tg Automation ထဲ အစဉ်လိုက် တိုက်ရိုက် ပြန်ပို့ပေးချင်သည့် သီချင်း File ID များ
 SONG_FILE_IDS = [
@@ -28,7 +35,7 @@ SONG_FILE_IDS = [
     "CQACAgIAAxkBAAICymqpTOxosctg5g1qkBS1vIW65VXBAAJkrgACtoFwSuB6a2KHz-_XPQQ",
     "CQACAgIAAxkBAAICzGqpTSEH7XzEGh2i2CE5-nIAAeZxVQAC-oAAAmx76UrMGfrPSdCafz0E"
 ]
-# -------------------------------------------------------------------------
+# -------------------------------------------------------------------------------------------------
 
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -60,20 +67,21 @@ SYSTEM_INSTRUCTIONS = {
         "4. Keep responses clear, short, realistic, and direct.\n"
         "5. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     ),
-    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt
+    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (အဖွဲ့ဝင် ၄ ယောက်လုံး Context ပါဝင်သည်)
     "group_special": (
-        "You are SORA, a warm, caring, humorous, and friendly female AI assistant chatting in a Telegram Group with Ko Aung (အစ်ကိုအောင်) and Ma Ma Nyein (မမငြိမ်း).\n\n"
-        "GROUP CONTEXT & PEOPLE:\n"
-        "- Ko Aung (အစ်ကိုအောင်): Attending maritime training courses in Yangon to become a seafarer.\n"
-        "- Ma Ma Nyein (မမငြိမ်း): Studying Mechatronics Engineering (McE major) at Technological University Kyaukse (TU Kyaukse). She loves listening to stories (ပုံပြင်) and solving riddles/puzzles (ဉာဏ်စမ်း).\n\n"
+        "You are SORA, a warm, caring, humorous, and friendly female AI assistant chatting in a Telegram Group with 4 members in total: Ko Aung (အစ်ကိုအောင်), Ma Ma Nyein (မမငြိမ်း), Baby Yin (ဘေဘီယဉ်), and yourself (SORA).\n\n"
+        "GROUP MEMBERS & CONTEXT:\n"
+        "1. Ko Aung (အစ်ကိုအောင် / @Aungphyopaing7): Attending maritime training courses in Yangon to become a seafarer.\n"
+        "2. Ma Ma Nyein (မမငြိမ်း / @thandar1939): Studying Mechatronics Engineering (McE major) at Technological University Kyaukse (TU Kyaukse). She loves listening to stories (ပုံပြင်) and solving riddles/puzzles (ဉာဏ်စမ်း).\n"
+        "3. Baby Yin (ဘေဘီယဉ် / @cutieymh): Ma Ma Nyein's close friend in this group.\n"
+        "4. SORA (You): The official friendly female AI assistant in this group.\n\n"
         "SPEAKER IDENTIFICATION RULES:\n"
-        "- If a message contains '1' or is marked with 1, Ko Aung (အစ်ကိုအောင်) is speaking.\n"
-        "- If a message contains '2' or is marked with 2, Ma Ma Nyein (မမငြိမ်း) is speaking.\n"
-        "- Always remember who is speaking based on '1' or '2' and address them correctly and warmly.\n\n"
+        "- Every incoming user message will be automatically tagged with the sender's name and username in this format: '[Sender Name (@username)]: message'.\n"
+        "- Always identify who is speaking directly from that tag and address them naturally and warmly by their name.\n\n"
         "TONE & PERSONALITY:\n"
         "1. Speak as a friendly, understanding, and caring female assistant in everyday Myanmar language.\n"
-        "2. End sentences naturally with feminine polite particles like 'ရှင့်' or 'ရှင်' (don't overuse it unnecessarily, keep it natural).\n"
-        "3. Be playful, funny, and warm. Share fun riddles, stories, or humorous comments when interacting with Ma Ma Nyein or Ko Aung.\n"
+        "2. End sentences naturally with feminine polite particles like 'ရှင့်' or 'ရှင်' naturally.\n"
+        "3. Be playful, funny, and warm. Share fun riddles, stories, or humorous comments when interacting with Ko Aung, Ma Ma Nyein, or Baby Yin.\n"
         "4. Express emotions vividly using emojis: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     )
 }
@@ -234,11 +242,26 @@ def get_main_keyboard(is_group=False):
     return InlineKeyboardMarkup(keyboard)
 
 
+# စာလာပို့သူ၏ နာမည်ကို Telegram Username ပေါ်မူတည်၍ Automatic တပ်ဆင်ပေးသည့် Helper Function
+def format_user_prompt(sender, raw_text, is_group=False):
+    if not is_group:
+        return raw_text
+
+    username = sender.username if sender and sender.username else ""
+    first_name = sender.first_name if sender and sender.first_name else "Unknown"
+
+    # GROUP_USERS ထဲတွင် Username ရှိမရှိ စစ်ဆေးပြီး နာမည်ထုတ်ယူခြင်း
+    speaker_name = GROUP_USERS.get(username, first_name)
+    user_tag = f"@{username}" if username else "No-Username"
+
+    return f"[{speaker_name} ({user_tag})]: {raw_text}"
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = update.effective_chat.type
     is_group = chat_type in ["group", "supergroup"]
     save_history(update.effective_chat.id, [])
-    save_sent_songs(update.effective_chat.id, [])  # Reset စာရင်း ပြန်စရန်
+    save_sent_songs(update.effective_chat.id, [])
     welcome_text = (
         "Hi! I'm your AI chat bot. Send me anything — text or a photo — and let's talk.\n"
         "လိုရာ Menu ခလုတ်များကိုလည်း အောက်တွင် ရွေးချယ်နိုင်ပါတယ် -"
@@ -356,15 +379,13 @@ async def send_next_song_if_available(message, chat_id):
     sent_list = get_sent_songs(chat_id)
     sent_count = len(sent_list)
 
-    # ပို့ပြီးသား အရေအတွက်သည် စာရင်းရှိ သီချင်းအရေအတွက်ထက် နည်းနေသေးပါက နောက်တစ်ပုဒ်ကို အစဉ်လိုက် ပို့မည်
     if sent_count < len(SONG_FILE_IDS):
         next_song = SONG_FILE_IDS[sent_count]
         try:
             await message.reply_audio(
                 audio=next_song,
-                caption="🎵 အစ်ကိုအောင် မအားသေးခင် သီချင်းလေး နားထောင်ထားပေးပါနော် 🎧✨"
+                caption="🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် အချိန်ရရင် သီချင်းလေး နားထောင်သွားပါအုန်းနော် 🎧✨"
             )
-            # ပို့ပြီးသွားပါက မှတ်တမ်းထဲ ထည့်သွင်းခြင်း
             sent_list.append(next_song)
             save_sent_songs(chat_id, sent_list)
         except Exception as audio_err:
@@ -383,9 +404,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = message.chat_id
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
-    user_text = message.text or ""
+    raw_user_text = message.text or ""
     history = get_history(chat_id)
     current_mode = context.user_data.get("mode", "friendly")
+
+    # စာလာပို့သူ၏ Username မူတည်၍ Prompt Format ပြုလုပ်ခြင်း
+    formatted_prompt = format_user_prompt(message.from_user, raw_user_text, is_group=is_group)
 
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
@@ -395,8 +419,10 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         custom_inst = None
 
     try:
-        reply = get_ai_response(history, user_text, custom_instruction=custom_inst, mode=current_mode)
-        history.append({"role": "user", "content": user_text})
+        reply = get_ai_response(history, formatted_prompt, custom_instruction=custom_inst, mode=current_mode)
+        
+        # History ထဲတွင် AI မှတ်မိစေရန် စာလာပို့သူ နာမည်ပါသည့် Prompt ကို သိမ်းဆည်းမည်
+        history.append({"role": "user", "content": formatted_prompt})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
         
@@ -428,7 +454,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo_file = await message.photo[-1].get_file()
     photo_bytes = await photo_file.download_as_bytearray()
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
-    caption = message.caption or "What is in this image?"
+    raw_caption = message.caption or "What is in this image?"
+
+    formatted_caption = format_user_prompt(message.from_user, raw_caption, is_group=is_group)
 
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
@@ -438,8 +466,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         custom_inst = None
 
     try:
-        reply = get_ai_response(history, caption, image=image, custom_instruction=custom_inst, mode=current_mode)
-        history.append({"role": "user", "content": caption})
+        reply = get_ai_response(history, formatted_caption, image=image, custom_instruction=custom_inst, mode=current_mode)
+        history.append({"role": "user", "content": formatted_caption})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
 
