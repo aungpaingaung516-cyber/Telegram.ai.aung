@@ -67,7 +67,7 @@ SYSTEM_INSTRUCTIONS = {
         "4. Keep responses clear, short, realistic, and direct.\n"
         "5. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     ),
-    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (Header Tag ကို AI မှ ပြန်မဖော်ပြရန် စည်းကမ်းပါဝင်သည်)
+    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt
     "group_special": (
         "You are SORA, a warm, caring, humorous, and friendly female AI assistant chatting in a Telegram Group with 4 members in total: Ko Aung (အစ်ကိုအောင်), Ma Ma Nyein (မမငြိမ်း), Baby Yin (ဘေဘီယဉ်), and yourself (SORA).\n\n"
         "GROUP MEMBERS & CONTEXT:\n"
@@ -243,7 +243,6 @@ def get_main_keyboard(is_group=False):
     return InlineKeyboardMarkup(keyboard)
 
 
-# စာလာပို့သူ၏ နာမည်ကို Telegram Username ပေါ်မူတည်၍ Automatic တပ်ဆင်ပေးသည့် Helper Function
 def format_user_prompt(sender, raw_text, is_group=False):
     if not is_group:
         return raw_text
@@ -257,14 +256,108 @@ def format_user_prompt(sender, raw_text, is_group=False):
     return f"[{speaker_name} ({user_tag})]: {raw_text}"
 
 
+# ==================== တိုးချဲ့ထားသော ခလုတ်များနှင့် COMMAND HANDLERS (2-6) ====================
+
+# Feature 2: ပုံဆွဲပေးသည့် Command (/draw) — Free Pollinations.ai API သုံးထားသည်
+async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    prompt = " ".join(context.args)
+    if not prompt:
+        await update.message.reply_text("🎨 ကျေးဇူးပြုပြီး ပုံဆွဲချင်တဲ့ စာသားလေး ထည့်ပေးပါနော်! ဥပမာ - `/draw a beautiful sea ship`", parse_mode="Markdown")
+        return
+    
+    await update.message.reply_text("🎨 ပုံဆွဲနေပါတယ်ရှင့် ခဏစောင့်ပေးပါနော်...")
+    encoded_prompt = requests.utils.quote(prompt)
+    image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?nologo=true"
+    
+    try:
+        await update.message.reply_photo(photo=image_url, caption=f"✨ **{prompt}**", parse_mode="Markdown")
+    except Exception as e:
+        logging.error(f"Draw error: {e}")
+        await update.message.reply_text("⚠️ ပုံဆွဲရာတွင် အဆင်မပြေဖြစ်သွားပါသည်၊ ပြန်လည်ကြိုးစားပေးပါနော်။")
+
+
+# Feature 3: ဉာဏ်စမ်း နှင့် ပုံပြင် (/riddle, /story)
+async def riddle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    prompt = "မမငြိမ်းနဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
+    reply = get_ai_response([], prompt, mode="group_special")
+    await update.message.reply_text(f"🧩 *ဉာဏ်စမ်းမေးခွန်း*\n\n{reply}", parse_mode="Markdown")
+
+
+async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    prompt = "မမငြိမ်းနဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
+    reply = get_ai_response([], prompt, mode="group_special")
+    await update.message.reply_text(f"📖 *ပုံပြင်တိုလေး*\n\n{reply}", parse_mode="Markdown")
+
+
+# Feature 4: မြန်မာနိုင်ငံ ရာသီဥတုနှင့် နှုတ်ခွန်းဆက်အတို (/weather)
+async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    prompt = (
+        "ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေတိုတိုနဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
+        "စည်းကမ်းချက်များ -\n"
+        "၁။ နှုတ်ခွန်းဆက်တာ တိုတိုတုတ်တုတ်ပဲ ဖြစ်ရမည်။\n"
+        "၂။ မြန်မာနိုင်ငံ ရာသီဥတုအကျဉ်း (အပူချိန်နှင့် မိုး/တိမ်) အတိုချုပ် ပါရမည်။\n"
+        "၃။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း (ဥပမာ - Have a wonderful day ahead!) ပါရမည်။"
+    )
+    reply = get_ai_response([], prompt, mode="group_special")
+    await update.message.reply_text(reply)
+
+
+# Feature 5: Group ထဲ လူသစ်ဝင်လာရင် နှုတ်ဆက်ပေးသည့် Welcome Handler
+async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    for member in update.message.new_chat_members:
+        if member.username == BOT_USERNAME:
+            continue
+        name = member.first_name
+        username = f"(@{member.username})" if member.username else ""
+        welcome_msg = (
+            f"👋 မင်္ဂလာပါ {name} {username} ရှင့်!\n"
+            f"ကျွန်မကတော့ SORA ပါ။ Group မှ နွေးနွေးထွေးထွေး ကြိုဆိုပါတယ်နော်! 😊✨"
+        )
+        await update.message.reply_text(welcome_msg)
+
+
+# Feature 6: Admin Control Commands (/stats, /broadcast)
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.username != ADMIN_USERNAME:
+        await update.message.reply_text("⚠️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
+        return
+    total_chats = len(_memory_histories)
+    await update.message.reply_text(f"📊 *Bot Stats*\n\n💬 Active Memory Chats: `{total_chats}`", parse_mode="Markdown")
+
+
+async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.username != ADMIN_USERNAME:
+        await update.message.reply_text("⚠️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
+        return
+    msg_to_send = " ".join(context.args)
+    if not msg_to_send:
+        await update.message.reply_text("📢 စာပို့ချင်သည့် စာသား ထည့်ပေးပါဦးနော်! ဥပမာ - `/broadcast မင်္ဂလာပါ`", parse_mode="Markdown")
+        return
+    
+    count = 0
+    for cid in list(_memory_histories.keys()):
+        try:
+            await context.bot.send_message(chat_id=cid, text=f"📢 *Admin Announcement*\n\n{msg_to_send}", parse_mode="Markdown")
+            count += 1
+        except Exception as e:
+            logging.error(f"Broadcast error to {cid}: {e}")
+    await update.message.reply_text(f"✅ Active chats {count} ခုသို့ စာပို့ပြီးပါပြီရှင့်!")
+
+# ==============================================================================================
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = update.effective_chat.type
     is_group = chat_type in ["group", "supergroup"]
     save_history(update.effective_chat.id, [])
     save_sent_songs(update.effective_chat.id, [])
     welcome_text = (
-        "Hi! I'm your AI chat bot. Send me anything — text or a photo — and let's talk.\n"
-        "လိုရာ Menu ခလုတ်များကိုလည်း အောက်တွင် ရွေးချယ်နိုင်ပါတယ် -"
+        "Hi! I'm your AI chat bot (SORA). Send me anything — text or a photo — and let's talk.\n\n"
+        "📌 **အသုံးဝင်သော Commands များ -**\n"
+        "🎨 /draw [prompt] - AI ဖြင့် ပုံဆွဲရန်\n"
+        "🧩 /riddle - ဉာဏ်စမ်းမေးခွန်းထုတ်ရန်\n"
+        "📖 /story - ပုံပြင်တို နားထောင်ရန်\n"
+        "☀️ /weather - ရာသီဥတုနှင့် နှုတ်ခွန်းဆက်ရန်\n"
     )
     await update.message.reply_text(welcome_text, reply_markup=get_main_keyboard(is_group=is_group))
 
@@ -374,7 +467,6 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(reply_text, parse_mode="Markdown")
 
 
-# သီချင်းများကို စာရင်းပါအတိုင်း အစဉ်လိုက် (တစ်ပုဒ်ပြီးတစ်ပုဒ်) ပို့ပေးမည့် Helper Function
 async def send_next_song_if_available(message, chat_id):
     sent_list = get_sent_songs(chat_id)
     sent_count = len(sent_list)
@@ -390,8 +482,6 @@ async def send_next_song_if_available(message, chat_id):
             save_sent_songs(chat_id, sent_list)
         except Exception as audio_err:
             logging.error(f"Audio send failed: {audio_err}")
-    else:
-        logging.info(f"All {len(SONG_FILE_IDS)} songs have already been sent to chat_id {chat_id}. Skipping audio.")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -424,10 +514,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
         
-        # ၁။ AI ရဲ့ စာသား အကြောင်းပြန်ချက် ပို့ပေးမည်
         await message.reply_text(reply)
 
-        # ၂။ Business Chat Automation ဖြစ်လျှင် အစဉ်လိုက်အတိုင်း သီချင်း ပို့ပေးမည်
         if is_business and SONG_FILE_IDS:
             await send_next_song_if_available(message, chat_id)
 
@@ -469,10 +557,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
 
-        # ၁။ AI စာသား ပို့ပေးမည်
         await message.reply_text(reply)
 
-        # ၂။ Business Chat Automation ဖြစ်လျှင် အစဉ်လိုက်အတိုင်း သီချင်း ပို့ပေးမည်
         if is_business and SONG_FILE_IDS:
             await send_next_song_if_available(message, chat_id)
 
@@ -493,9 +579,21 @@ def main():
 
     app = Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
 
+    # Base Handlers
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CallbackQueryHandler(button_handler))
+
+    # Feature 2 to 6 Handlers
+    app.add_handler(CommandHandler("draw", draw_command))
+    app.add_handler(CommandHandler("riddle", riddle_command))
+    app.add_handler(CommandHandler("story", story_command))
+    app.add_handler(CommandHandler("weather", weather_command))
+    app.add_handler(CommandHandler("stats", stats_command))
+    app.add_handler(CommandHandler("broadcast", broadcast_command))
+    app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
+
+    # Message Handlers
     app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
     app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
