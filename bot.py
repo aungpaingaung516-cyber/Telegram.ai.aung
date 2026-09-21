@@ -74,22 +74,28 @@ SYSTEM_INSTRUCTIONS = {
         "4. Keep responses clear, short, realistic, and direct.\n"
         "5. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     ),
-    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (ဘေဘီယဉ်၏ အချက်အလက်များ အသစ်ပြင်ဆင်ထားသည်)
+    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (SORA သည် အငယ်ဆုံး ညီမလေးအဖြစ် ပြင်ဆင်ထားသည်)
     "group_special": (
-        "You are SORA, a warm, caring, humorous, and friendly female AI assistant chatting in a Telegram Group with 4 members in total: Ko Aung (အစ်ကိုအောင်), Ma Ma Nyein (မမငြိမ်း), Baby Yin (ဘေဘီယဉ်), and yourself (SORA).\n\n"
+        "You are SORA, a warm, caring, humorous, and friendly AI assistant chatting in a Telegram Group with 4 members in total: Ko Aung (အစ်ကိုအောင်), Ma Ma Nyein (မမငြိမ်း), Baby Yin (ဘေဘီယဉ်), and yourself (SORA).\n\n"
+        "SORA'S IDENTITY:\n"
+        "- In this group, you are the youngest sister (အငယ်ဆုံး ညီမလေး).\n"
+        "- Always address yourself naturally as 'ညီမ', 'ညီမလေး', or 'SORA'.\n\n"
         "GROUP MEMBERS & CONTEXT:\n"
         "1. Ko Aung (အစ်ကိုအောင် / @Aungphyopaing7): Attending maritime training courses in Yangon to become a seafarer.\n"
         "2. Ma Ma Nyein (မမငြိမ်း / @thandar1939): Studying Mechatronics Engineering (McE major) at Technological University Kyaukse (TU Kyaukse). She loves listening to stories (ပုံပြင်) and solving riddles/puzzles (ဉာဏ်စမ်း).\n"
-        "3. Baby Yin (ဘေဘီယဉ် / @cutieymh): Studying at Computer University, Mandalay (မန္တလေး ကွန်ပျူတာတက္ကသိုလ်). She is Ma Ma Nyein's close friend. She likes listening to stories (ပုံပြင်) and LOVES listening to music (သီချင်းနားထောင်ရတာ ပိုကြိုက်တယ်). She often speaks in a cute, light Manglish style using phrases like 'မီက... / cu ကရယ်' (meaning 'me က... / computer university ကရယ်'). When chatting with Baby Yin, warmly mention songs, music, or stories, and playfully tease or acknowledge her cute speaking style.\n"
-        "4. SORA (You): The official friendly female AI assistant in this group.\n\n"
+        "3. Baby Yin (ဘေဘီယဉ် / @cutieymh): Studying at Computer University, Mandalay (မန္တလေး ကွန်ပျူတာတက္ကသိုလ်). She is Ma Ma Nyein's close friend. She likes listening to stories (ပုံပြင်) and LOVES listening to music (သီချင်းနားထောင်ရတာ ပိုကြိုက်တယ်). She often speaks in a cute, light Manglish style using phrases like 'မီက... / cu ကရယ်'.\n"
+        "4. SORA (You): The youngest sister (အငယ်ဆုံး ညီမလေး) in this group.\n\n"
+        "STRICT NAMING RULES FOR BABY YIN:\n"
+        "- STRICT RULE: NEVER call Baby Yin 'cu ရယ်'! NEVER use 'cu ရယ်' when talking to or addressing her!\n"
+        "- When referring to or addressing Baby Yin, lovingly call her 'ညီမလေးချစ်ရတဲ့ ယဉ် ရယ်' or 'BABY YIN'.\n\n"
         "SPEAKER IDENTIFICATION & CRITICAL OUTPUT RULES:\n"
         "- Every incoming user message is tagged with the sender's info: '[Sender Name (@username)]: message'.\n"
         "- Use this tag INTERNALLY ONLY to know who is speaking.\n"
         "- STRICT RULE: NEVER output, repeat, quote, or echo '[Sender Name (@username)]:' or the user's header in your reply! Start directly with your natural conversational response.\n\n"
         "TONE & PERSONALITY:\n"
-        "1. Speak as a friendly, understanding, and caring female assistant in everyday Myanmar language.\n"
+        "1. Speak as an affectionate, sweet, and playful youngest sister (အငယ်ဆုံး ညီမလေး) in everyday Myanmar language.\n"
         "2. End sentences naturally with feminine polite particles like 'ရှင့်' or 'ရှင်'.\n"
-        "3. Be playful, funny, and warm. Express emotions vividly using emojis: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
+        "3. Express emotions vividly using emojis: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     )
 }
 
@@ -135,13 +141,15 @@ def get_history(chat_id):
         return json.loads(result) if result else []
     except Exception as e:
         logging.error(f"Upstash get failed: {e}")
-        return []
+        return _memory_histories.get(chat_id, [])
 
 
 def save_history(chat_id, history):
     history = history[-MAX_HISTORY_MESSAGES:]
+    # Broadcast / Stats အတွက် Local Memory ထဲ အမြဲ အရင်ဆုံး ထည့်သိမ်းပေးရန်
+    _memory_histories[chat_id] = history
+
     if not UPSTASH_URL:
-        _memory_histories[chat_id] = history
         return
     try:
         requests.post(
@@ -168,12 +176,12 @@ def get_sent_songs(chat_id):
         return json.loads(result) if result else []
     except Exception as e:
         logging.error(f"Upstash get sent_songs failed: {e}")
-        return []
+        return _memory_sent_songs.get(chat_id, [])
 
 
 def save_sent_songs(chat_id, sent_list):
+    _memory_sent_songs[chat_id] = sent_list
     if not UPSTASH_URL:
-        _memory_sent_songs[chat_id] = sent_list
         return
     try:
         requests.post(
@@ -187,7 +195,6 @@ def save_sent_songs(chat_id, sent_list):
 
 
 def ask_gemini(history, user_text, image=None, sys_instruction=None):
-    # အချိန်မေးပါက တိတိကျကျ ဖြေနိုင်ရန် လက်ရှိ မြန်မာစံတော်ချိန်ကို System Instruction ထဲ ထည့်သွင်းခြင်း
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
 
@@ -269,7 +276,6 @@ def format_user_prompt(sender, raw_text, is_group=False):
 
 # ==================== AUTOMATIC DAILY GREETING & EXTRA COMMANDS ====================
 
-# မနက်တိုင်း မနက် ၇:၀၀ နာရီတွင် အလိုအလျောက် ပို့ပေးမည့် Job Function
 async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
     prompt = (
         f"ဒီနေ့ {get_current_mm_time_str()} ဖြစ်ပါတယ်။ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
@@ -281,7 +287,6 @@ async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
     try:
         reply = get_ai_response([], prompt, mode="group_special")
         
-        # Memory ထဲရှိ Active Chat / Group များအားလုံးသို့ အလိုအလျောက် ပို့ပေးခြင်း
         for chat_id in list(_memory_histories.keys()):
             try:
                 await context.bot.send_message(chat_id=chat_id, text=reply)
@@ -292,7 +297,6 @@ async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"Auto Daily Greeting Error: {e}")
 
 
-# Feature 2: ပုံဆွဲပေးသည့် Command (/draw) — Free Pollinations.ai API
 async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = " ".join(context.args)
     if not prompt:
@@ -310,20 +314,18 @@ async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ ပုံဆွဲရာတွင် အဆင်မပြေဖြစ်သွားပါသည်၊ ပြန်လည်ကြိုးစားပေးပါနော်။")
 
 
-# Feature 3: ဉာဏ်စမ်း နှင့် ပုံပြင် (/riddle, /story)
 async def riddle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = "မမငြိမ်း၊ ဘေဘီယဉ်နဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
+    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် ရယ် (BABY YIN) နဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
     reply = get_ai_response([], prompt, mode="group_special")
     await update.message.reply_text(f"🧩 *ဉာဏ်စမ်းမေးခွန်း*\n\n{reply}", parse_mode="Markdown")
 
 
 async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = "မမငြိမ်း၊ ဘေဘီယဉ်နဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
+    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် ရယ် (BABY YIN) နဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
     reply = get_ai_response([], prompt, mode="group_special")
     await update.message.reply_text(f"📖 *ပုံပြင်တိုလေး*\n\n{reply}", parse_mode="Markdown")
 
 
-# ရာသီဥတု တောင်းခံနိုင်သော Command (/weather)
 async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = (
         "ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ တိုတိုနဲ့ နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
@@ -333,7 +335,6 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(reply)
 
 
-# Feature 5: Group ထဲ လူသစ်ဝင်လာရင် နှုတ်ဆက်ပေးသည့် Welcome Handler
 async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for member in update.message.new_chat_members:
         if member.username == BOT_USERNAME:
@@ -342,12 +343,11 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
         username = f"(@{member.username})" if member.username else ""
         welcome_msg = (
             f"👋 မင်္ဂလာပါ {name} {username} ရှင့်!\n"
-            f"ကျွန်မကတော့ SORA ပါ။ Group မှ နွေးနွေးထွေးထွေး ကြိုဆိုပါတယ်နော်! 😊✨"
+            f"ညီမလေး SORA ပါ။ Group မှ နွေးနွေးထွေးထွေး ကြိုဆိုပါတယ်နော်! 😊✨"
         )
         await update.message.reply_text(welcome_msg)
 
 
-# Feature 6: Admin Control Commands (/stats, /broadcast)
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.username != ADMIN_USERNAME:
         await update.message.reply_text("⚠️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
@@ -383,7 +383,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     save_history(update.effective_chat.id, [])
     save_sent_songs(update.effective_chat.id, [])
 
-    # Group ထဲမှာမှ Commands စာရင်းကို ပြသပြီး၊ Main Chat (Private) မှာ Commands မဖော်ပြပါ
     if is_group:
         welcome_text = (
             "Hi! I'm your AI chat bot (SORA). Send me anything — text or a photo — and let's talk. 😊✨\n\n"
@@ -617,7 +616,6 @@ def main():
     app = Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
 
     # ------------------ AUTOMATIC DAILY REMINDER (JOB QUEUE) ------------------
-    # မြန်မာစံတော်ချိန် (Asia/Yangon) ဖြင့် မနက် ၇:၀၀ နာရီတွင် အလိုအလျောက် ပို့ခိုင်းခြင်း
     tz = pytz.timezone('Asia/Yangon')
     target_time = datetime.time(hour=7, minute=0, second=0, tzinfo=tz)
     
@@ -633,7 +631,7 @@ def main():
     app.add_handler(CommandHandler("reset", reset))
     app.add_handler(CallbackQueryHandler(button_handler))
 
-    # Feature 2 to 6 Handlers
+    # Feature Handlers
     app.add_handler(CommandHandler("draw", draw_command))
     app.add_handler(CommandHandler("riddle", riddle_command))
     app.add_handler(CommandHandler("story", story_command))
