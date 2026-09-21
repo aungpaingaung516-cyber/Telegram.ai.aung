@@ -41,6 +41,12 @@ SONG_FILE_IDS = [
 
 genai.configure(api_key=GEMINI_API_KEY)
 
+def get_current_mm_time_str():
+    """မြန်မာစံတော်ချိန် (Asia/Yangon) လက်ရှိ ရက်စွဲနှင့် အချိန်ကို ယူပေးသော Function"""
+    tz = pytz.timezone('Asia/Yangon')
+    now = datetime.datetime.now(tz)
+    return now.strftime("%Y-%m-%d (%A) %I:%M:%S %p")
+
 # Chat နေရာပေါ်မူတည်၍ ခွဲခြားထားသော System Instructions
 SYSTEM_INSTRUCTIONS = {
     # ၁။ Bot ထဲမှာ တိုက်ရိုက်ပြောလျှင် သုံးမည့် Default Friendly Instructions
@@ -50,8 +56,7 @@ SYSTEM_INSTRUCTIONS = {
         "RULES:\n"
         "1. Speak with genuine emotional care and understanding, making the user feel comforted and valued.\n"
         "2. Express clear emotional empathy using natural affectionate emojis like 😊, 🥰, 🥺, ❤️, 💗, 🤗, 😉, 😜, 😂, 🤧, 🥹, 💬.\n"
-        "3. Do NOT use anchor emoji. Do NOT use dramatic or unnatural archaic words.\n"
-        "4. Keep responses direct, concise, natural, and helpful while maintaining high warmth and kindness."
+        "3. Keep responses direct, concise, natural, and helpful while maintaining high warmth and kindness."
     ),
     "pro": (
         "You are a professional, polite, structured, and clear AI assistant chatting on Telegram. "
@@ -69,13 +74,13 @@ SYSTEM_INSTRUCTIONS = {
         "4. Keep responses clear, short, realistic, and direct.\n"
         "5. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     ),
-    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt
+    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (ဘေဘီယဉ်၏ အချက်အလက်များ အသစ်ပြင်ဆင်ထားသည်)
     "group_special": (
         "You are SORA, a warm, caring, humorous, and friendly female AI assistant chatting in a Telegram Group with 4 members in total: Ko Aung (အစ်ကိုအောင်), Ma Ma Nyein (မမငြိမ်း), Baby Yin (ဘေဘီယဉ်), and yourself (SORA).\n\n"
         "GROUP MEMBERS & CONTEXT:\n"
         "1. Ko Aung (အစ်ကိုအောင် / @Aungphyopaing7): Attending maritime training courses in Yangon to become a seafarer.\n"
         "2. Ma Ma Nyein (မမငြိမ်း / @thandar1939): Studying Mechatronics Engineering (McE major) at Technological University Kyaukse (TU Kyaukse). She loves listening to stories (ပုံပြင်) and solving riddles/puzzles (ဉာဏ်စမ်း).\n"
-        "3. Baby Yin (ဘေဘီယဉ် / @cutieymh): Ma Ma Nyein's close friend in this group.\n"
+        "3. Baby Yin (ဘေဘီယဉ် / @cutieymh): Studying at Computer University, Mandalay (မန္တလေး ကွန်ပျူတာတက္ကသိုလ်). She is Ma Ma Nyein's close friend. She likes listening to stories (ပုံပြင်) and LOVES listening to music (သီချင်းနားထောင်ရတာ ပိုကြိုက်တယ်). She often speaks in a cute, light Manglish style using phrases like 'မီက... / cu ကရယ်' (meaning 'me က... / computer university ကရယ်'). When chatting with Baby Yin, warmly mention songs, music, or stories, and playfully tease or acknowledge her cute speaking style.\n"
         "4. SORA (You): The official friendly female AI assistant in this group.\n\n"
         "SPEAKER IDENTIFICATION & CRITICAL OUTPUT RULES:\n"
         "- Every incoming user message is tagged with the sender's info: '[Sender Name (@username)]: message'.\n"
@@ -83,9 +88,8 @@ SYSTEM_INSTRUCTIONS = {
         "- STRICT RULE: NEVER output, repeat, quote, or echo '[Sender Name (@username)]:' or the user's header in your reply! Start directly with your natural conversational response.\n\n"
         "TONE & PERSONALITY:\n"
         "1. Speak as a friendly, understanding, and caring female assistant in everyday Myanmar language.\n"
-        "2. End sentences naturally with feminine polite particles like 'ရှင့်' or 'ရှင်' naturally.\n"
-        "3. Be playful, funny, and warm. Share fun riddles, stories, or humorous comments when interacting with Ko Aung, Ma Ma Nyein, or Baby Yin.\n"
-        "4. Express emotions vividly using emojis: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
+        "2. End sentences naturally with feminine polite particles like 'ရှင့်' or 'ရှင်'.\n"
+        "3. Be playful, funny, and warm. Express emotions vividly using emojis: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
     )
 }
 
@@ -183,8 +187,11 @@ def save_sent_songs(chat_id, sent_list):
 
 
 def ask_gemini(history, user_text, image=None, sys_instruction=None):
-    instruction = sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]
-    model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction=instruction)
+    # အချိန်မေးပါက တိတိကျကျ ဖြေနိုင်ရန် လက်ရှိ မြန်မာစံတော်ချိန်ကို System Instruction ထဲ ထည့်သွင်းခြင်း
+    time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
+    full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
+
+    model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction=full_instruction)
     
     contents = []
     for msg in history:
@@ -197,8 +204,10 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
 
 
 def ask_groq(history, user_text, sys_instruction=None):
-    instruction = sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]
-    messages = [{"role": "system", "content": instruction}]
+    time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]."
+    full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
+
+    messages = [{"role": "system", "content": full_instruction}]
     for msg in history:
         role = "user" if msg["role"] == "user" else "assistant"
         messages.append({"role": role, "content": msg["content"]})
@@ -263,11 +272,11 @@ def format_user_prompt(sender, raw_text, is_group=False):
 # မနက်တိုင်း မနက် ၇:၀၀ နာရီတွင် အလိုအလျောက် ပို့ပေးမည့် Job Function
 async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
     prompt = (
-        "ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
+        f"ဒီနေ့ {get_current_mm_time_str()} ဖြစ်ပါတယ်။ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
         "စည်းကမ်းချက်များ -\n"
-        "၁။ မနက်တိုင်း မရိုးရအောင် ပုံစံတစ်မျိုးနဲ့ စကားပြောဆိုသူတွေကို ကြည့်ပြီး တိုတိုတုတ်တုတ် နွေးနွေးထွေးထွေး နှုတ်ဆက်ရန်။\n"
+        "၁။ မနက်တိုင်း မရိုးရအောင် ပုံစံတစ်မျိုးနဲ့ အဖွဲ့ဝင်တွေကို တိုတိုတုတ်တုတ် နွေးနွေးထွေးထွေး နှုတ်ဆက်ရန်။\n"
         "၂။ ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အကျဉ်းချုပ် (အပူချိန်နဲ့ မိုး/တိမ်) ကို လိုရင်းပဲ ပါရှိရန်။\n"
-        "၃။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း (ဥပမာ - Have a wonderful day ahead!) ပါရှိရန်။"
+        "၃။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း ပါရှိရန်။"
     )
     try:
         reply = get_ai_response([], prompt, mode="group_special")
@@ -303,13 +312,13 @@ async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # Feature 3: ဉာဏ်စမ်း နှင့် ပုံပြင် (/riddle, /story)
 async def riddle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = "မမငြိမ်းနဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
+    prompt = "မမငြိမ်း၊ ဘေဘီယဉ်နဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
     reply = get_ai_response([], prompt, mode="group_special")
     await update.message.reply_text(f"🧩 *ဉာဏ်စမ်းမေးခွန်း*\n\n{reply}", parse_mode="Markdown")
 
 
 async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = "မမငြိမ်းနဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
+    prompt = "မမငြိမ်း၊ ဘေဘီယဉ်နဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
     reply = get_ai_response([], prompt, mode="group_special")
     await update.message.reply_text(f"📖 *ပုံပြင်တိုလေး*\n\n{reply}", parse_mode="Markdown")
 
@@ -608,12 +617,15 @@ def main():
     app = Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
 
     # ------------------ AUTOMATIC DAILY REMINDER (JOB QUEUE) ------------------
-    # မြန်မာစံတော်ချိန် (Asia/Yangon) ဖြင့် မနက် ၇:၀၀ နာရီတွင် မနက်တိုင်း အလိုအလျောက် ပို့ခိုင်းခြင်း
+    # မြန်မာစံတော်ချိန် (Asia/Yangon) ဖြင့် မနက် ၇:၀၀ နာရီတွင် အလိုအလျောက် ပို့ခိုင်းခြင်း
     tz = pytz.timezone('Asia/Yangon')
     target_time = datetime.time(hour=7, minute=0, second=0, tzinfo=tz)
     
     if app.job_queue:
         app.job_queue.run_daily(auto_daily_greeting, time=target_time)
+        logging.info("Daily JobQueue registered successfully for 07:00 AM MMT.")
+    else:
+        logging.warning("JobQueue is not available! Please check APScheduler installation.")
     # -------------------------------------------------------------------------
 
     # Base Handlers
