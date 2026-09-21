@@ -19,7 +19,7 @@ UPSTASH_URL = os.environ.get("UPSTASH_URL")    # persistent storage — optional
 UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
 
-# ----------------- ပြင်ဆင်ပြီးသား Link များ၊ Username များနှင့် Group အဖွဲ့ဝင်များ -----------------
+# ----------------- ပြင်ဆင်ပြီးသား Link များ၊ Username များနှင့် သီချင်း File IDs -----------------
 ADMIN_USERNAME = "Aungphyopaing7"
 MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
 
@@ -30,12 +30,14 @@ GROUP_USERS = {
     "cutieymh": "ဘေဘီယဉ်"
 }
 
-# Tg Automation ထဲ အစဉ်လိုက် တိုက်ရိုက် ပြန်ပို့ပေးချင်သည့် သီချင်း File ID များ
+# အစ်ကိုအောင် ပို့ပေးထားသော Audio File ID ၆ ခု စာရင်း
 SONG_FILE_IDS = [
-    "CQACAgIAAxkBAAICwGqpSqItHPFZWrLdkVMyUnyJ2fRAAAJFPAACMlFJSqNuOnWB4E0gPQQ",
-    "CQACAgIAAxkBAAICyGqpTDSyYqQ0m80MFsFNj8FX0Y_aAAIzLgAClup4SBHc1wWe206OPQQ",
-    "CQACAgIAAxkBAAICymqpTOxosctg5g1qkBS1vIW65VXBAAJkrgACtoFwSuB6a2KHz-_XPQQ",
-    "CQACAgIAAxkBAAICzGqpTSEH7XzEGh2i2CE5-nIAAeZxVQAC-oAAAmx76UrMGfrPSdCafz0E"
+    "CQACAgIAAxkBAAIDLmqxOwl9SsyYgSJL-5kKWczq97RgAAJFPAACMlFJSqNuOnWB4E0gPQQ",
+    "CQACAgUAAxkBAAIDL2qxOwllW1CqSbsU-MqVBGtu6m9LAAIlKgACFRLpVBYEQUhVl30UPQQ",
+    "CQACAgQAAxkBAAIDMGqxOwlErmhE3oAlt-2cckgfoVPiAAK5MwACDxARUu7Fjr7FPhwUPQQ",
+    "CQACAgIAAxkBAAIDMWqxOwme95M1tlh5RtKGki0MPpYOAAIzLgAClup4SBHc1wWe206OPQQ",
+    "CQACAgIAAxkBAAIDMmqxOwmZY4uxm2wLvM6GFCe492L1AAJkrgACtoFwSuB6a2KHz-_XPQQ",
+    "CQACAgIAAxkBAAIDM2qxOwlhVRot8TkUS47rDPVuqWmwAAL6gAACbHvpSswZ-s9J0Jp_PQQ"
 ]
 # -------------------------------------------------------------------------------------------------
 
@@ -67,14 +69,14 @@ SYSTEM_INSTRUCTIONS = {
         "You are SORA, the official personal female AI Assistant for Ko Aung (အောင်ဖြိုးပိုင်). "
         "You are replying on Ko Aung's Telegram personal chat on his behalf.\n\n"
         "RULES:\n"
-        "1. Speak as a polite and balanced female assistant. Use 'ဟုတ်ကဲ့ပါ ရှင့်' or 'ရှင့်' naturally.\n"
-        "2. STRICTLY DO NOT use words like 'ကိုကိုတို့' or 'မမတို့'. Keep the tone balanced, clear, and polite without being overly sweet.\n"
-        "3. If someone asks for Ko Aung or sends a message, reply directly and politely:\n"
-        "   'ဟုတ်ကဲ့ပါ ရှင့်၊ အခု အစ်ကိုအောင် သင်တန်း/အလုပ် ရောက်နေလို့ မအားသေးလို့ပါနော်။ ပြောချင်တာရှိရင် စာချန်ထားခဲ့ပေးပါ၊ အစ်ကို ပြန်လာရင် ပြန်ပြောပေးပါမယ်ရှင့်😊'\n"
-        "4. Keep responses clear, short, realistic, and direct.\n"
-        "5. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪."
+        "1. Speak as a polite, sweet, and balanced female assistant using 'ရှင့်' or 'ရှင်' naturally.\n"
+        "2. ALWAYS ANSWER THE USER'S QUESTION OR REQUEST FIRST directly and helpfully!\n"
+        "3. After answering their question, gently remind them: 'အခု အစ်ကိုအောင် က သင်တန်း/အလုပ် ရောက်နေလို့ မအားသေးလို့ပါနော်။ ပြောချင်တာရှိရင် စာချန်ထားခဲ့ပေးပါ၊ အစ်ကို ပြန်လာရင် ပြန်ပြောပေးပါမယ်။ တစ်ကယ်လို့ စကားပြောချင်ရင် ညီမ SORA နဲ့ ဆက်ပြောလို့ရပါတယ်ရှင်၊ မပြောချင်ဘူးဆိုရင်လည်း သီချင်းလေးတွေ နားထောင်သွားလို့ရပါတယ်နော်🥰'\n"
+        "4. STRICTLY DO NOT use words like 'ကိုကိုတို့' or 'မမတို့'. Keep the tone balanced, polite, and respectful.\n"
+        "5. Keep responses direct, clear, helpful, polite, and natural.\n"
+        "6. Use these emojis naturally: 😂, 😉, 😜, 🤧, 😊, 😑, 😐, 🤪, 🥰, 🎧."
     ),
-    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (SORA သည် အငယ်ဆုံး ညီမလေးအဖြစ် ပြင်ဆင်ထားသည်)
+    # ၃။ အထူး Telegram Group Chat အတွက် သီးသန့် Prompt (SORA သည် အငယ်ဆုံး ညီမလေးဖြစ်သည်)
     "group_special": (
         "You are SORA, a warm, caring, humorous, and friendly AI assistant chatting in a Telegram Group with 4 members in total: Ko Aung (အစ်ကိုအောင်), Ma Ma Nyein (မမငြိမ်း), Baby Yin (ဘေဘီယဉ်), and yourself (SORA).\n\n"
         "SORA'S IDENTITY:\n"
@@ -315,13 +317,13 @@ async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def riddle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် ရယ် (BABY YIN) နဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
+    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (BABY YIN) နဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
     reply = get_ai_response([], prompt, mode="group_special")
     await update.message.reply_text(f"🧩 *ဉာဏ်စမ်းမေးခွန်း*\n\n{reply}", parse_mode="Markdown")
 
 
 async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် ရယ် (BABY YIN) နဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
+    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (BABY YIN) နဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
     reply = get_ai_response([], prompt, mode="group_special")
     await update.message.reply_text(f"📖 *ပုံပြင်တိုလေး*\n\n{reply}", parse_mode="Markdown")
 
@@ -507,12 +509,12 @@ async def send_next_song_if_available(message, chat_id):
     sent_list = get_sent_songs(chat_id)
     sent_count = len(sent_list)
 
-    if sent_count < len(SONG_FILE_IDS):
+    if SONG_FILE_IDS and sent_count < len(SONG_FILE_IDS):
         next_song = SONG_FILE_IDS[sent_count]
         try:
             await message.reply_audio(
                 audio=next_song,
-                caption="🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် အချိန်ရရင် သီချင်းလေး နားထောင်သွားပါအုန်းနော် 🎧✨"
+                caption="🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် သီချင်းလေး နားထောင်ရင်း စောင့်လို့ရပါတယ်နော် 🎧✨"
             )
             sent_list.append(next_song)
             save_sent_songs(chat_id, sent_list)
