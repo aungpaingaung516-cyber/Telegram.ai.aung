@@ -19,9 +19,10 @@ UPSTASH_URL = os.environ.get("UPSTASH_URL")    # persistent storage — optional
 UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
 
-# ----------------- ပြင်ဆင်ပြီးသား Link များ၊ Username များနှင့် သီချင်း File IDs -----------------
+# ----------------- ပြင်ဆင်ပြီးသား Link များ၊ Username များ၊ Group ID နှင့် သီချင်း File IDs -----------------
 ADMIN_USERNAME = "Aungphyopaing7"
 MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
+SPECIAL_GROUP_ID = -4374095185  # မနက်ခင်း နှုတ်ခွန်းဆက်စာ ပို့မည့် Special Group ရဲ့ Chat ID
 
 # Group ထဲရှိ အဖွဲ့ဝင်များ၏ Telegram Usernames Matching
 GROUP_USERS = {
@@ -85,11 +86,11 @@ SYSTEM_INSTRUCTIONS = {
         "GROUP MEMBERS & CONTEXT:\n"
         "1. Ko Aung (အစ်ကိုအောင် / @Aungphyopaing7): Attending maritime training courses in Yangon to become a seafarer.\n"
         "2. Ma Ma Nyein (မမငြိမ်း / @thandar1939): Studying Mechatronics Engineering (McE major) at Technological University Kyaukse (TU Kyaukse). She loves listening to stories (ပုံပြင်) and solving riddles/puzzles (ဉာဏ်စမ်း).\n"
-        "3. Baby Yin (ဘေဘီယဉ် / @cutieymh): Studying at Computer University, Mandalay (မန္တလေး ကွန်ပျူတာတက္ကသိုလ်). She is Ma Ma Nyein's close friend. She likes listening to stories (ပုံပြင်) and LOVES listening to music (သီချင်းနားထောင်ရတာ ပိုကြိုက်တယ်). She often speaks in a cute, light Manglish style using phrases like 'မီက... / cu ကရယ်'.\n"
+        "3. Baby Yin (ဘေဘီယဉ် / @cutieymh): Studying at Computer University, Mandalay (မန္တလေး ကွန်ပျူတာတက္ကသိုလ်). She is Ma Ma Nyein's close friend. She likes listening to stories (ပုံပြင်) and LOVES listening to music (သီချင်းနားထောင်ရတာ ပိုကြိုက်တယ်).\n"
         "4. SORA (You): The youngest sister (အငယ်ဆုံး ညီမလေး) in this group.\n\n"
         "STRICT NAMING RULES FOR BABY YIN:\n"
-        "- STRICT RULE: NEVER call Baby Yin 'cu ရယ်'! NEVER use 'cu ရယ်' when talking to or addressing her!\n"
-        "- When referring to or addressing Baby Yin, lovingly call her 'ညီမလေးချစ်ရတဲ့ ယဉ် ရယ်' or 'BABY YIN'.\n\n"
+        "- STRICT RULE: NEVER call Baby Yin 'cu ရယ်'! NEVER use 'cu ရယ်' under any circumstances!\n"
+        "- When referring to or addressing Baby Yin, ALWAYS call her 'ဘေဘီယဉ်' or 'ညီမလေးချစ်ရတဲ့ ယဉ်'.\n\n"
         "SPEAKER IDENTIFICATION & CRITICAL OUTPUT RULES:\n"
         "- Every incoming user message is tagged with the sender's info: '[Sender Name (@username)]: message'.\n"
         "- Use this tag INTERNALLY ONLY to know who is speaking.\n"
@@ -148,7 +149,6 @@ def get_history(chat_id):
 
 def save_history(chat_id, history):
     history = history[-MAX_HISTORY_MESSAGES:]
-    # Broadcast / Stats အတွက် Local Memory ထဲ အမြဲ အရင်ဆုံး ထည့်သိမ်းပေးရန်
     _memory_histories[chat_id] = history
 
     if not UPSTASH_URL:
@@ -279,24 +279,23 @@ def format_user_prompt(sender, raw_text, is_group=False):
 # ==================== AUTOMATIC DAILY GREETING & EXTRA COMMANDS ====================
 
 async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
+    """မနက် ၇:၀၀ တိုင်းတွင် Special Group သို့သာ မနက်ခင်း နှုတ်ခွန်းဆက် စာပို့ပေးသည့် Function"""
     prompt = (
-        f"ဒီနေ့ {get_current_mm_time_str()} ဖြစ်ပါတယ်။ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
+        f"ဒီနေ့ {get_current_mm_time_str()} ဖြစ်ပါတယ်။ အစ်ကိုအောင်၊ မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (ဘေဘီယဉ်) တို့ အဖွဲ့ဝင်တွေအတွက် "
+        "မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။\n\n"
         "စည်းကမ်းချက်များ -\n"
-        "၁။ မနက်တိုင်း မရိုးရအောင် ပုံစံတစ်မျိုးနဲ့ အဖွဲ့ဝင်တွေကို တိုတိုတုတ်တုတ် နွေးနွေးထွေးထွေး နှုတ်ဆက်ရန်။\n"
+        "၁။ မနက်တိုင်း မရိုးရအောင် အငယ်ဆုံး ညီမလေး SORA ပုံစံဖြင့် တိုတိုတုတ်တုတ် နွေးနွေးထွေးထွေး နှုတ်ဆက်ရန်။\n"
         "၂။ ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အကျဉ်းချုပ် (အပူချိန်နဲ့ မိုး/တိမ်) ကို လိုရင်းပဲ ပါရှိရန်။\n"
-        "၃။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း ပါရှိရန်။"
+        "၃။ ဘေဘီယဉ် ကို ခေါ်ဆိုရာတွင် 'ဘေဘီယဉ်' သို့မဟုတ် 'ညီမလေးချစ်ရတဲ့ ယဉ်' ဟုသာ ခေါ်ရန် ('cu ရယ်' ဟု လုံးဝ မခေါ်ရပါ)။\n"
+        "၄။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း ပါရှိရန်။"
     )
     try:
         reply = get_ai_response([], prompt, mode="group_special")
-        
-        for chat_id in list(_memory_histories.keys()):
-            try:
-                await context.bot.send_message(chat_id=chat_id, text=reply)
-            except Exception as err:
-                logging.error(f"Daily greeting send error to {chat_id}: {err}")
-                
+        # Private Chat များဆီ မရောက်ဘဲ Special Group ထဲ သီးသန့် ပို့ပေးခြင်း
+        await context.bot.send_message(chat_id=SPECIAL_GROUP_ID, text=reply)
+        logging.info(f"Daily morning greeting sent successfully to Special Group ({SPECIAL_GROUP_ID}).")
     except Exception as e:
-        logging.error(f"Auto Daily Greeting Error: {e}")
+        logging.error(f"Auto Daily Greeting Error to Special Group ({SPECIAL_GROUP_ID}): {e}")
 
 
 async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -317,13 +316,13 @@ async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def riddle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (BABY YIN) နဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
+    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (ဘေဘီယဉ်) နဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
     reply = get_ai_response([], prompt, mode="group_special")
     await update.message.reply_text(f"🧩 *ဉာဏ်စမ်းမေးခွန်း*\n\n{reply}", parse_mode="Markdown")
 
 
 async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (BABY YIN) နဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
+    prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (ဘေဘီယဉ်) နဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
     reply = get_ai_response([], prompt, mode="group_special")
     await update.message.reply_text(f"📖 *ပုံပြင်တိုလေး*\n\n{reply}", parse_mode="Markdown")
 
@@ -623,7 +622,7 @@ def main():
     
     if app.job_queue:
         app.job_queue.run_daily(auto_daily_greeting, time=target_time)
-        logging.info("Daily JobQueue registered successfully for 07:00 AM MMT.")
+        logging.info("Daily JobQueue registered successfully for 07:00 AM MMT (Special Group Target).")
     else:
         logging.warning("JobQueue is not available! Please check APScheduler installation.")
     # -------------------------------------------------------------------------
