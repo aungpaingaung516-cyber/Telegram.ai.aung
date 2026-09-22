@@ -14,7 +14,6 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")  # fallback AI — optional
 UPSTASH_URL = os.environ.get("UPSTASH_URL")    # persistent storage — optional
 UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
@@ -212,36 +211,9 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     return response.text
 
 
-def ask_groq(history, user_text, sys_instruction=None):
-    time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]."
-    full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
-
-    messages = [{"role": "system", "content": full_instruction}]
-    for msg in history:
-        role = "user" if msg["role"] == "user" else "assistant"
-        messages.append({"role": role, "content": msg["content"]})
-    messages.append({"role": "user", "content": user_text})
-
-    resp = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-        json={"model": "llama-3.3-70b-versatile", "messages": messages},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
-
-
 def get_ai_response(history, user_text, image=None, custom_instruction=None, mode="friendly"):
     sys_instruction = custom_instruction or SYSTEM_INSTRUCTIONS.get(mode, SYSTEM_INSTRUCTIONS["friendly"])
-    try:
-        return ask_gemini(history, user_text, image, sys_instruction)
-    except Exception as e:
-        logging.error(f"Gemini failed: {e}")
-        if image is not None or not GROQ_API_KEY:
-            raise
-        logging.info("Falling back to Groq...")
-        return ask_groq(history, user_text, sys_instruction)
+    return ask_gemini(history, user_text, image, sys_instruction)
 
 
 def get_main_keyboard(is_group=False):
