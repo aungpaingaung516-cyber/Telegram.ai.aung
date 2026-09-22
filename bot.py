@@ -19,7 +19,7 @@ UPSTASH_URL = os.environ.get("UPSTASH_URL")    # persistent storage — optional
 UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
 
-# ----------------- ပြင်ဆင်ပြီးသား Link များ၊ Username များ၊ Group ID နှင့် သီချင်း File IDs -----------------
+# ----------------- Link များ၊ Username များ၊ Group ID နှင့် သီချင်း File IDs -----------------
 ADMIN_USERNAME = "Aungphyopaing7"
 MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
 SPECIAL_GROUP_ID = -4374095185  # မနက်ခင်း နှုတ်ခွန်းဆက်စာ ပို့မည့် Special Group ရဲ့ Chat ID
@@ -488,8 +488,13 @@ def should_respond_in_group(update: Update) -> bool:
 
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Private Chat ထဲတွင် ပို့မှသာ Audio File ID ကို ပြန်ထုတ်ပေးသည့် Function"""
     message = update.effective_message
-    if message.audio:
+    if not message or not message.audio:
+        return
+
+    # Private Chat (1-on-1) ထဲတွင် ပို့မှသာ Audio File ID ကို ပြန်စာ ပို့ပေးမည်
+    if message.chat.type == "private":
         file_id = message.audio.file_id
         file_name = message.audio.file_name or "Audio File"
         
