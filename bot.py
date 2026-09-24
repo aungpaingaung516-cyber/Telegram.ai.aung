@@ -14,6 +14,7 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")  # fallback AI — optional
 UPSTASH_URL = os.environ.get("UPSTASH_URL")    # persistent storage — optional
 UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
 PORT = int(os.environ.get("PORT", 10000))
@@ -199,7 +200,7 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
 
-    model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction=full_instruction)
+    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=full_instruction)
     
     contents = []
     for msg in history:
@@ -211,9 +212,36 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     return response.text
 
 
+def ask_groq(history, user_text, sys_instruction=None):
+    time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]."
+    full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
+
+    messages = [{"role": "system", "content": full_instruction}]
+    for msg in history:
+        role = "user" if msg["role"] == "user" else "assistant"
+        messages.append({"role": role, "content": msg["content"]})
+    messages.append({"role": "user", "content": user_text})
+
+    resp = requests.post(
+        "https://api.groq.com/openai/v1/chat/completions",
+        headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+        json={"model": "llama-3.3-70b-versatile", "messages": messages},
+        timeout=30,
+    )
+    resp.raise_for_status()
+    return resp.json()["choices"][0]["message"]["content"]
+
+
 def get_ai_response(history, user_text, image=None, custom_instruction=None, mode="friendly"):
     sys_instruction = custom_instruction or SYSTEM_INSTRUCTIONS.get(mode, SYSTEM_INSTRUCTIONS["friendly"])
-    return ask_gemini(history, user_text, image, sys_instruction)
+    try:
+        return ask_gemini(history, user_text, image, sys_instruction)
+    except Exception as e:
+        logging.error(f"Gemini failed: {e}")
+        if image is not None or not GROQ_API_KEY:
+            raise
+        logging.info("Falling back to Groq...")
+        return ask_groq(history, user_text, sys_instruction)
 
 
 def get_main_keyboard(is_group=False):
@@ -251,7 +279,7 @@ def format_user_prompt(sender, raw_text, is_group=False):
 # ==================== AUTOMATIC DAILY GREETING & EXTRA COMMANDS ====================
 
 async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
-    """မနက် ၇:၀၀ တိုင်းတွင် Special Group သို့သာ မနက်ခင်း နှုတ်ခွန်းဆက် စာပို့ပေးသည့် Function"""
+    """မနက်တိုင်း Special Group သို့သာ မနက်ခင်း နှုတ်ခွန်းဆက် စာပို့ပေးသည့် Function"""
     prompt = (
         f"ဒီနေ့ {get_current_mm_time_str()} ဖြစ်ပါတယ်။ အစ်ကိုအောင်၊ မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (ဘေဘီယဉ်) တို့ အဖွဲ့ဝင်တွေအတွက် "
         "မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။\n\n"
@@ -262,8 +290,7 @@ async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
         "၄။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း ပါရှိရန်။"
     )
     try:
-        reply = get_ai_response([], prompt, mode="group_special")
-        # Private Chat များဆီ မရောက်ဘဲ Special Group ထဲ သီးသန့် ပို့ပေးခြင်း
+        reply = get_ai_response([], prompt, custom_instruction=SYSTEM_INSTRUCTIONS["group_special"], mode="group_special")
         await context.bot.send_message(chat_id=SPECIAL_GROUP_ID, text=reply)
         logging.info(f"Daily morning greeting sent successfully to Special Group ({SPECIAL_GROUP_ID}).")
     except Exception as e:
@@ -289,13 +316,13 @@ async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def riddle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (ဘေဘီယဉ်) နဲ့ အဖွဲ့ဝင်တွေဖြေဖို့ မြန်မာလို ပျော်စရာ ဉာဏ်စမ်းမေးခွန်း (Riddle) တစ်ခု မေးပေးပါ။ အဖြေကို ချက်ချင်း မဖော်ပြပါနဲ့ဦး။"
-    reply = get_ai_response([], prompt, mode="group_special")
+    reply = get_ai_response([], prompt, custom_instruction=SYSTEM_INSTRUCTIONS["group_special"], mode="group_special")
     await update.message.reply_text(f"🧩 *ဉာဏ်စမ်းမေးခွန်း*\n\n{reply}", parse_mode="Markdown")
 
 
 async def story_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     prompt = "မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (ဘေဘီယဉ်) နဲ့ အဖွဲ့ဝင်တွေ နားထောင်ဖို့ စိတ်ဝင်စားစရာ စာပိုဒ်တို ပုံပြင်လေး တစ်ခု ပြောပြပေးပါ။"
-    reply = get_ai_response([], prompt, mode="group_special")
+    reply = get_ai_response([], prompt, custom_instruction=SYSTEM_INSTRUCTIONS["group_special"], mode="group_special")
     await update.message.reply_text(f"📖 *ပုံပြင်တိုလေး*\n\n{reply}", parse_mode="Markdown")
 
 
@@ -304,7 +331,7 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ တိုတိုနဲ့ နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။ "
         "အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း ပါရမည်။"
     )
-    reply = get_ai_response([], prompt, mode="group_special")
+    reply = get_ai_response([], prompt, custom_instruction=SYSTEM_INSTRUCTIONS["group_special"], mode="group_special")
     await update.message.reply_text(reply)
 
 
@@ -447,16 +474,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def should_respond_in_group(update: Update) -> bool:
+    """Group ထဲတွင် Bot စာပြန်မပြန် စစ်ဆေးပေးသည့် Function"""
     message = update.effective_message
-    if message.chat.type == "private":
-        return True
-    if message.reply_to_message and message.reply_to_message.from_user.username == BOT_USERNAME:
-        return True
-    if message.text and BOT_USERNAME and f"@{BOT_USERNAME}" in message.text:
-        return True
-    if message.caption and BOT_USERNAME and f"@{BOT_USERNAME}" in message.caption:
-        return True
-    return False
+    if not message:
+        return False
+        
+    chat_type = message.chat.type
+    if chat_type in ["group", "supergroup"]:
+        # Special Group ဖြစ်နေလျှင် သို့မဟုတ် Bot ကို Tag/Mention ခေါ်ထားလျှင် စာပြန်မည်
+        if message.chat_id == SPECIAL_GROUP_ID:
+            return True
+        if message.text and BOT_USERNAME and f"@{BOT_USERNAME}" in message.text:
+            return True
+        if message.caption and BOT_USERNAME and f"@{BOT_USERNAME}" in message.caption:
+            return True
+        if message.reply_to_message and message.reply_to_message.from_user.username == BOT_USERNAME:
+            return True
+        return False
+    return True
 
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -465,7 +500,6 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not message or not message.audio:
         return
 
-    # Private Chat (1-on-1) ထဲတွင် ပို့မှသာ Audio File ID ကို ပြန်စာ ပို့ပေးမည်
     if message.chat.type == "private":
         file_id = message.audio.file_id
         file_name = message.audio.file_name or "Audio File"
@@ -592,17 +626,6 @@ def main():
     threading.Thread(target=run_health_server, daemon=True).start()
 
     app = Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
-
-    # ------------------ AUTOMATIC DAILY REMINDER (JOB QUEUE) ------------------
-    tz = pytz.timezone('Asia/Yangon')
-    target_time = datetime.time(hour=7, minute=0, second=0, tzinfo=tz)
-    
-    if app.job_queue:
-        app.job_queue.run_daily(auto_daily_greeting, time=target_time)
-        logging.info("Daily JobQueue registered successfully for 07:00 AM MMT (Special Group Target).")
-    else:
-        logging.warning("JobQueue is not available! Please check APScheduler installation.")
-    # -------------------------------------------------------------------------
 
     # Base Handlers
     app.add_handler(CommandHandler("start", start))
