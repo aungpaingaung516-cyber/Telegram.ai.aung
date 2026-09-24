@@ -11,6 +11,7 @@ import google.generativeai as genai
 from PIL import Image
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
+from telegram.request import HTTPXRequest
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
@@ -474,23 +475,27 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def should_respond_in_group(update: Update) -> bool:
-    """Group ထဲတွင် Bot စာပြန်မပြန် စစ်ဆေးပေးသည့် Function"""
+    """Group ထဲတွင် Bot ကို Mention/Tag ခေါ်မှ သို့မဟုတ် Reply ပြန်မှသာ စာပြန်ပေးမည့် Function"""
     message = update.effective_message
     if not message:
         return False
         
     chat_type = message.chat.type
     if chat_type in ["group", "supergroup"]:
-        # Special Group ဖြစ်နေလျှင် သို့မဟုတ် Bot ကို Tag/Mention ခေါ်ထားလျှင် စာပြန်မည်
-        if message.chat_id == SPECIAL_GROUP_ID:
-            return True
+        # ၁။ Bot Username ကို Tag/Mention ခေါ်ထားလျှင် စာပြန်မည်
         if message.text and BOT_USERNAME and f"@{BOT_USERNAME}" in message.text:
             return True
         if message.caption and BOT_USERNAME and f"@{BOT_USERNAME}" in message.caption:
             return True
-        if message.reply_to_message and message.reply_to_message.from_user.username == BOT_USERNAME:
+            
+        # ၂။ Bot ရဲ့ စာကို Reply ပြန်ထားလျှင် စာပြန်မည်
+        if message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.username == BOT_USERNAME:
             return True
+            
+        # အထက်ပါ ချက်များနှင့် မညီပါက စကားဝင်မပြောဘဲ ငြိမ်နေမည်
         return False
+        
+    # Private Chat ထဲတွင် အမြဲတမ်း စာပြန်မည်
     return True
 
 
@@ -625,7 +630,21 @@ async def post_init(app: Application):
 def main():
     threading.Thread(target=run_health_server, daemon=True).start()
 
-    app = Application.builder().token(TELEGRAM_TOKEN).post_init(post_init).build()
+    # PythonAnywhere Proxy 503 error မဖြစ်အောင် HTTPXRequest သတ်မှတ်ခြင်း
+    t_request = HTTPXRequest(
+        connect_timeout=20.0,
+        read_timeout=20.0,
+        write_timeout=20.0,
+        pool_timeout=20.0
+    )
+
+    app = (
+        Application.builder()
+        .token(TELEGRAM_TOKEN)
+        .request(t_request)
+        .post_init(post_init)
+        .build()
+    )
 
     # Base Handlers
     app.add_handler(CommandHandler("start", start))
