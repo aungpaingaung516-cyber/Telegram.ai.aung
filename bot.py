@@ -219,7 +219,7 @@ def ask_groq(history, user_text, sys_instruction=None):
 
     messages = [{"role": "system", "content": full_instruction}]
     for msg in history:
-        role = "user" if msg["role"] == "user" else "assistant"
+        role = "user" if msg["role"] == "assistant" else "user"
         messages.append({"role": role, "content": msg["content"]})
     messages.append({"role": "user", "content": user_text})
 
@@ -475,7 +475,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 def should_respond_in_group(update: Update) -> bool:
-    """Group ထဲတွင် Bot ကို Mention/Tag ခေါ်မှ သို့မဟုတ် Reply ပြန်မှသာ စာပြန်ပေးမည့် Function"""
+    """Group ထဲတွင် Bot ကို Mention/Tag ขေါ်မှ သို့မဟုတ် Reply ပြန်မှသာ စာပြန်ပေးမည့် Function"""
     message = update.effective_message
     if not message:
         return False
@@ -630,12 +630,13 @@ async def post_init(app: Application):
 def main():
     threading.Thread(target=run_health_server, daemon=True).start()
 
-    # PythonAnywhere Proxy 503 error မဖြစ်အောင် HTTPXRequest သတ်မှတ်ခြင်း
+    # PythonAnywhere Free Plan အတွက် Proxy Configuration သတ်မှတ်ခြင်း
     t_request = HTTPXRequest(
-        connect_timeout=20.0,
-        read_timeout=20.0,
-        write_timeout=20.0,
-        pool_timeout=20.0
+        connect_timeout=30.0,
+        read_timeout=30.0,
+        write_timeout=30.0,
+        pool_timeout=30.0,
+        proxy="http://proxy.server:3128"  # PythonAnywhere Free Proxy
     )
 
     app = (
