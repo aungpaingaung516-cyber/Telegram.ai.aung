@@ -176,7 +176,7 @@ def save_sent_songs(chat_id, sent_list):
 def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
-    model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=full_instruction)
+    model = genai.GenerativeModel("gemini-3.1-flash-lite", system_instruction=full_instruction)
     contents = []
     for msg in history:
         role = "user" if msg["role"] == "user" else "model"
