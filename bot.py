@@ -15,15 +15,11 @@ from telegram.request import HTTPXRequest
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 UPSTASH_URL = os.environ.get("UPSTASH_URL")
 UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
 
-# If your host requires an outbound proxy (e.g. PythonAnywhere free), set this env var.
-# Otherwise leave OUTBOUND_PROXY unset and it will be ignored.
-OUTBOUND_PROXY = os.environ.get("OUTBOUND_PROXY")  # e.g. "http://proxy.server:3128"
+OUTBOUND_PROXY = os.environ.get("OUTBOUND_PROXY")
 
-# ----------------- Link များ၊ Username များ၊ Group ID နှင့် သီချင်း File IDs -----------------
 ADMIN_USERNAME = "Aungphyopaing7"
 MUSIC_CHANNEL_LINK = "https://t.me/A_MUSIC_CHANNEL_LINK"
 SPECIAL_GROUP_ID = -4374095185
@@ -42,7 +38,6 @@ SONG_FILE_IDS = [
     "CQACAgIAAxkBAAIDMmqxOwmZY4uxm2wLvM6GFCe492L1AAJkrgACtoFwSuB6a2KHz-_XPQQ",
     "CQACAgIAAxkBAAIDM2qxOwlhVRot8TkUS47rDPVuqWmwAAL6gAACbHvpSswZ-s9J0Jp_PQQ"
 ]
-# -------------------------------------------------------------------------------------------------
 
 genai.configure(api_key=GEMINI_API_KEY)
 
@@ -181,7 +176,7 @@ def save_sent_songs(chat_id, sent_list):
 def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
-    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=full_instruction)
+    model = genai.GenerativeModel("gemini-2.5-flash", system_instruction=full_instruction)
     contents = []
     for msg in history:
         role = "user" if msg["role"] == "user" else "model"
@@ -192,34 +187,9 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     return response.text
 
 
-def ask_groq(history, user_text, sys_instruction=None):
-    time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]."
-    full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
-    messages = [{"role": "system", "content": full_instruction}]
-    for msg in history:
-        role = "user" if msg["role"] == "assistant" else "user"
-        messages.append({"role": role, "content": msg["content"]})
-    messages.append({"role": "user", "content": user_text})
-    resp = requests.post(
-        "https://api.groq.com/openai/v1/chat/completions",
-        headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-        json={"model": "llama-3.3-70b-versatile", "messages": messages},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()["choices"][0]["message"]["content"]
-
-
 def get_ai_response(history, user_text, image=None, custom_instruction=None, mode="friendly"):
     sys_instruction = custom_instruction or SYSTEM_INSTRUCTIONS.get(mode, SYSTEM_INSTRUCTIONS["friendly"])
-    try:
-        return ask_gemini(history, user_text, image, sys_instruction)
-    except Exception as e:
-        logging.error(f"Gemini failed: {e}")
-        if image is not None or not GROQ_API_KEY:
-            raise
-        logging.info("Falling back to Groq...")
-        return ask_groq(history, user_text, sys_instruction)
+    return ask_gemini(history, user_text, image, sys_instruction)
 
 
 def get_main_keyboard(is_group=False):
@@ -552,8 +522,6 @@ async def post_init(app: Application):
     logging.info(f"Bot username: @{BOT_USERNAME}")
 
 
-# ==================== WEBHOOK SETUP (replaces run_polling) ====================
-
 request_kwargs = dict(connect_timeout=30.0, read_timeout=30.0, write_timeout=30.0, pool_timeout=30.0)
 if OUTBOUND_PROXY:
     request_kwargs["proxy"] = OUTBOUND_PROXY
@@ -600,7 +568,6 @@ def health():
     return "Bot is running"
 
 
-# This is what the hosting platform's WSGI server imports.
 application = flask_app
 
 if __name__ == "__main__":
