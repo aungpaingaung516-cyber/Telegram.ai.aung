@@ -9,6 +9,7 @@ import requests
 import google.generativeai as genai
 from PIL import Image
 from flask import Flask, request
+from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
@@ -221,7 +222,8 @@ def format_user_prompt(sender, raw_text, is_group=False):
     return f"[{speaker_name} ({user_tag})]: {raw_text}"
 
 
-async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
+async def auto_daily_greeting():
+    """မနက်တိုင်း Special Group သို့သာ မနက်ခင်း နှုတ်ခွန်းဆက် စာပို့ပေးသည့် Function (APScheduler ကနေ ခေါ်သည်)"""
     prompt = (
         f"ဒီနေ့ {get_current_mm_time_str()} ဖြစ်ပါတယ်။ အစ်ကိုအောင်၊ မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (ဘေဘီယဉ်) တို့ အဖွဲ့ဝင်တွေအတွက် "
         "မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။\n\n"
@@ -233,7 +235,7 @@ async def auto_daily_greeting(context: ContextTypes.DEFAULT_TYPE):
     )
     try:
         reply = get_ai_response([], prompt, custom_instruction=SYSTEM_INSTRUCTIONS["group_special"], mode="group_special")
-        await context.bot.send_message(chat_id=SPECIAL_GROUP_ID, text=reply)
+        await tg_app.bot.send_message(chat_id=SPECIAL_GROUP_ID, text=reply)
         logging.info(f"Daily morning greeting sent successfully to Special Group ({SPECIAL_GROUP_ID}).")
     except Exception as e:
         logging.error(f"Auto Daily Greeting Error to Special Group ({SPECIAL_GROUP_ID}): {e}")
@@ -378,7 +380,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         starter_text = QUICK_PROMPTS.get(prompt_type, "Hello!")
         await query.edit_message_text("⏳ ခဏစောင့်ပါ...", reply_markup=get_main_keyboard(is_group=is_group))
         history = get_history(chat_id)
-        current_mode = context.user_data.get("mode", "friendly")
+        # NOTE: mode now stored per-chat (chat_data), not per-user, so group/private modes never mix
+        current_mode = context.chat_data.get("mode", "friendly")
         try:
             reply = get_ai_response(history, starter_text, mode=current_mode)
             history.append({"role": "user", "content": starter_text})
@@ -390,7 +393,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.message.reply_text(f"⚠️ Error: {str(e)[:300]}")
     elif data.startswith("mode_"):
         selected_mode = data.replace("mode_", "")
-        context.user_data["mode"] = selected_mode
+        context.chat_data["mode"] = selected_mode
         if selected_mode == "group_special":
             mode_title = "👥 Group Special Mode"
         elif selected_mode == "friendly":
@@ -460,7 +463,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_group = chat_type in ["group", "supergroup"]
     raw_user_text = message.text or ""
     history = get_history(chat_id)
-    current_mode = context.user_data.get("mode", "friendly")
+    current_mode = context.chat_data.get("mode", "friendly")
     formatted_prompt = format_user_prompt(message.from_user, raw_user_text, is_group=is_group)
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
@@ -490,7 +493,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
     history = get_history(chat_id)
-    current_mode = context.user_data.get("mode", "friendly")
+    current_mode = context.chat_data.get("mode", "friendly")
     photo_file = await message.photo[-1].get_file()
     photo_bytes = await photo_file.download_as_bytearray()
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
@@ -552,6 +555,19 @@ tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messag
 _loop = asyncio.new_event_loop()
 asyncio.set_event_loop(_loop)
 _loop.run_until_complete(tg_app.initialize())
+# post_init only auto-runs under run_polling()/run_webhook(); since we manage the
+# webhook manually via Flask, we must call it ourselves so BOT_USERNAME gets set.
+_loop.run_until_complete(post_init(tg_app))
+
+
+def run_auto_greeting_job():
+    """APScheduler calls this synchronously; it drives the async greeting on our shared loop."""
+    _loop.run_until_complete(auto_daily_greeting())
+
+
+scheduler = BackgroundScheduler(timezone="Asia/Yangon")
+scheduler.add_job(run_auto_greeting_job, "cron", hour=6, minute=30)
+scheduler.start()
 
 flask_app = Flask(__name__)
 
