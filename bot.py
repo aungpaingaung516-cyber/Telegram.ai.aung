@@ -183,7 +183,7 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
     
     # gemini-1.5-flash-latest သို့မဟုတ် gemini-1.5-flash အသုံးပြုခြင်း
-    model = genai.GenerativeModel("gemini-1.5-flash-latest", system_instruction=full_instruction)
+    model = genai.GenerativeModel("gemini-3.1-flash-lite", system_instruction=full_instruction)
     
     contents = []
     for msg in history:
