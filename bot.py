@@ -35,7 +35,7 @@ GROUP_USERS = {
     "cutieymh": "ဘေဘီယဉ်"
 }
 
-# အစ်ကိုအောင် ပို့ပေးထားသော သီချင်း File ID အသစ်များ
+# အစ်ကိုအောင် ပို့ပေးထားသော သီချင်း File ID များ
 SONG_FILE_IDS = [
     "CQACAgIAAxkDAALeLmq4xrcbDCl6gtpHuNt1dkik5NNJAAL6gAACbHvpSswZ-s9J0Jp_PQQ",
     "CQACAgIAAxkDAALeK2q4xoeunJmnNwaVusIoqK6boa3wAAJkrgACtoFwSuB6a2KHz-_XPQQ",
@@ -182,7 +182,8 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
     
-    model = genai.GenerativeModel("gemini-1.5-flash-latest", system_instruction=full_instruction)
+    # gemini-3.1-flash-lite သို့ ပြောင်းလဲထားပါသည်
+    model = genai.GenerativeModel("gemini-3.1-flash-lite", system_instruction=full_instruction)
     
     contents = []
     for msg in history:
