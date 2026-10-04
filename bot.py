@@ -6,6 +6,7 @@ import asyncio
 import datetime
 import pytz
 import requests
+import nest_asyncio
 import google.generativeai as genai
 from PIL import Image
 from flask import Flask, request
@@ -13,6 +14,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
+
+# Flask & Asyncio Event Loop Conflict မဖြစ်စေရန်
+nest_asyncio.apply()
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
@@ -178,8 +182,8 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
     
-    # Official Gemini 1.5 Flash Model
-    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=full_instruction)
+    # gemini-1.5-flash-latest သို့မဟုတ် gemini-1.5-flash အသုံးပြုခြင်း
+    model = genai.GenerativeModel("gemini-1.5-flash-latest", system_instruction=full_instruction)
     
     contents = []
     for msg in history:
@@ -226,7 +230,7 @@ def format_user_prompt(sender, raw_text, is_group=False):
 
 
 async def auto_daily_greeting():
-    """မနက်တိုင်း Special Group သို့သာ မနက်ခင်း နှုတ်ခွန်းဆက် စာပို့ပေးသည့် Function (APScheduler ကနေ ခေါ်သည်)"""
+    """မနက်တိုင်း Special Group သို့သာ မနက်ခင်း နှုတ်ခွန်းဆက် စာပို့ပေးသည့် Function"""
     prompt = (
         f"ဒီနေ့ {get_current_mm_time_str()} ဖြစ်ပါတယ်။ အစ်ကိုအောင်၊ မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (ဘေဘီယဉ်) တို့ အဖွဲ့ဝင်တွေအတွက် "
         "မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။\n\n"
@@ -295,7 +299,7 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.username != ADMIN_USERNAME:
-        await update.message.reply_text("⚠ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
+        await update.message.reply_text("⚠️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
         return
     total_chats = len(_memory_histories)
     await update.message.reply_text(f"📊 *Bot Stats*\n\n💬 Active Memory Chats: `{total_chats}`", parse_mode="Markdown")
@@ -458,6 +462,8 @@ async def send_next_song_if_available(message, chat_id):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_business = update.business_message is not None
     message = update.business_message if is_business else update.effective_message
+    if not message or not message.text:
+        return
     if not is_business and not should_respond_in_group(update):
         return
     chat_id = message.chat_id
@@ -489,6 +495,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_business = update.business_message is not None
     message = update.business_message if is_business else update.effective_message
+    if not message or not message.photo:
+        return
     if not is_business and not should_respond_in_group(update):
         return
     chat_id = message.chat_id
