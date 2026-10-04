@@ -177,7 +177,8 @@ def save_sent_songs(chat_id, sent_list):
 def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
-    model = genai.GenerativeModel("gemini-3.1-flash-lite", system_instruction=full_instruction)
+    # Gemini 3 Series မော်ဒယ်သစ် (gemini-3.5-flash) သို့ အစားထိုးထားသည်
+    model = genai.GenerativeModel("gemini-3.5-flash", system_instruction=full_instruction)
     contents = []
     for msg in history:
         role = "user" if msg["role"] == "user" else "model"
@@ -292,7 +293,7 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.username != ADMIN_USERNAME:
-        await update.message.reply_text("⚠️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
+        await update.message.reply_text("⚠️️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
         return
     total_chats = len(_memory_histories)
     await update.message.reply_text(f"📊 *Bot Stats*\n\n💬 Active Memory Chats: `{total_chats}`", parse_mode="Markdown")
@@ -380,7 +381,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         starter_text = QUICK_PROMPTS.get(prompt_type, "Hello!")
         await query.edit_message_text("⏳ ခဏစောင့်ပါ...", reply_markup=get_main_keyboard(is_group=is_group))
         history = get_history(chat_id)
-        # NOTE: mode now stored per-chat (chat_data), not per-user, so group/private modes never mix
         current_mode = context.chat_data.get("mode", "friendly")
         try:
             reply = get_ai_response(history, starter_text, mode=current_mode)
@@ -555,8 +555,6 @@ tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_messag
 _loop = asyncio.new_event_loop()
 asyncio.set_event_loop(_loop)
 _loop.run_until_complete(tg_app.initialize())
-# post_init only auto-runs under run_polling()/run_webhook(); since we manage the
-# webhook manually via Flask, we must call it ourselves so BOT_USERNAME gets set.
 _loop.run_until_complete(post_init(tg_app))
 
 
