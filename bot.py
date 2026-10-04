@@ -35,7 +35,7 @@ GROUP_USERS = {
     "cutieymh": "ဘေဘီယဉ်"
 }
 
-# အစ်ကိုအောင် ပို့ပေးထားသော သီချင်း File ID များ (စုစုပေါင်း ၅ ပုဒ်)
+# သီချင်း File ID များ (သို့မဟုတ် Direct MP3 URL များ)
 SONG_FILE_IDS = [
     "CQACAgIAAxkDAALeLmq4xrcbDCl6gtpHuNt1dkik5NNJAAL6gAACbHvpSswZ-s9J0Jp_PQQ",
     "CQACAgIAAxkDAALeK2q4xoeunJmnNwaVusIoqK6boa3wAAJkrgACtoFwSuB6a2KHz-_XPQQ",
@@ -258,7 +258,7 @@ async def draw_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_photo(photo=image_url, caption=f"✨ **{prompt}**", parse_mode="Markdown")
     except Exception as e:
         logging.error(f"Draw error: {e}")
-        await update.message.reply_text("⚠️️ ပုံဆွဲရာတွင် အဆင်မပြေဖြစ်သွားပါသည်၊ ပြန်လည်ကြိုးစားပေးပါနော်။")
+        await update.message.reply_text("⚠️ ပုံဆွဲရာတွင် အဆင်မပြေဖြစ်သွားပါသည်၊ ပြန်လည်ကြိုးစားပေးပါနော်။")
 
 
 async def riddle_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -305,7 +305,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.username != ADMIN_USERNAME:
-        await update.message.reply_text("⚠ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
+        await update.message.reply_text("⚠️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
         return
     msg_to_send = " ".join(context.args)
     if not msg_to_send:
@@ -404,7 +404,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mode_title = "😊 Friendly Mode"
         else:
             mode_title = "💼 Professional Mode"
-        msg = f"⚙️ AI Mode ကို *{mode_title}* သို့ ပြောင်းလဲလိုက်ပါပြီ!"
+        msg = f"⚙️️ AI Mode ကို *{mode_title}* သို့ ပြောင်းလဲလိုက်ပါပြီ!"
         await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=get_main_keyboard(is_group=is_group))
 
 
@@ -441,20 +441,18 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(reply_text, parse_mode="Markdown")
 
 
-# Business Assistant တွင် တစ်ကြိမ် စာပို့လာပါက သီချင်းတစ်ပုဒ်နှုန်းဖြင့် စုစုပေါင်း ၅ ပုဒ်အထိ အစဉ်လိုက် ပြန်ပို့ပေးမည့် စနစ်
 async def send_next_song_if_available(message, chat_id):
     sent_list = get_sent_songs(chat_id)
     sent_count = len(sent_list)
     
-    # သီချင်း ၅ ပုဒ် မပြည့်သေးပါက နောက်ထပ် ၁ ပုဒ် ပို့ပေးမည်
     if SONG_FILE_IDS and sent_count < len(SONG_FILE_IDS):
         next_song = SONG_FILE_IDS[sent_count]
+        b_conn_id = getattr(message, "business_connection_id", None)
+        caption_text = f"🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် သီချင်းလေး နားထောင်ရင်း စောင့်လို့ရပါတယ်နော် ({sent_count + 1}/{len(SONG_FILE_IDS)}) 🎧✨"
+        
         try:
-            b_conn_id = getattr(message, "business_connection_id", None)
-            caption_text = f"🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် သီချင်းလေး နားထောင်ရင်း စောင့်လို့ရပါတယ်နော် ({sent_count + 1}/5) 🎧✨"
-            
             if b_conn_id:
-                # Telegram Business connection မှတစ်ဆင့် Audio ပြန်ပို့ခြင်း
+                # Telegram Business Connection ဖြင့် Audio ပို့ခြင်း
                 await message.get_bot().send_audio(
                     chat_id=chat_id,
                     audio=next_song,
@@ -469,9 +467,9 @@ async def send_next_song_if_available(message, chat_id):
             
             sent_list.append(next_song)
             save_sent_songs(chat_id, sent_list)
-            logging.info(f"Business Song ({sent_count + 1}/{len(SONG_FILE_IDS)}) sent to {chat_id}")
+            logging.info(f"✅ Audio sent successfully to chat_id: {chat_id}")
         except Exception as audio_err:
-            logging.error(f"Audio send failed for chat {chat_id}: {audio_err}")
+            logging.error(f"❌ Business Audio Send Failed for {chat_id}: {audio_err}")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -500,7 +498,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
         
-        # Business Message အတွက် reply_text ပို့ပေးခြင်း (business_connection_id အသုံးပြု၍)
         b_conn_id = getattr(message, "business_connection_id", None)
         if is_business and b_conn_id:
             await message.get_bot().send_message(
@@ -511,7 +508,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await message.reply_text(reply)
             
-        # Business စာဖြစ်ပါက သီချင်းတစ်ပုဒ်ချင်းစီ ပြန်ပို့ပေးမည်
+        # Business စာဖြစ်ပါက သီချင်း ပို့ပေးရန် Call ခေါ်ခြင်း
         if is_business and SONG_FILE_IDS:
             await send_next_song_if_available(message, chat_id)
     except Exception as e:
@@ -598,7 +595,7 @@ tg_app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome
 tg_app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
 tg_app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 
-# Business Messages နှင့် Standard Messages နှစ်ခုလုံးကို ဖမ်းယူရန် Handler များ
+# Business & Standard Messages Filter
 tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 _loop = asyncio.new_event_loop()
