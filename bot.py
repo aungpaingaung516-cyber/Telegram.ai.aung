@@ -35,13 +35,13 @@ GROUP_USERS = {
     "cutieymh": "ဘေဘီယဉ်"
 }
 
+# အစ်ကိုအောင် ပို့ပေးထားသော သီချင်း File ID အသစ်များ
 SONG_FILE_IDS = [
-    "CQACAgIAAxkBAAIDLmqxOwl9SsyYgSJL-5kKWczq97RgAAJFPAACMlFJSqNuOnWB4E0gPQQ",
-    "CQACAgUAAxkBAAIDL2qxOwllW1CqSbsU-MqVBGtu6m9LAAIlKgACFRLpVBYEQUhVl30UPQQ",
-    "CQACAgQAAxkBAAIDMGqxOwlErmhE3oAlt-2cckgfoVPiAAK5MwACDxARUu7Fjr7FPhwUPQQ",
-    "CQACAgIAAxkBAAIDMWqxOwme95M1tlh5RtKGki0MPpYOAAIzLgAClup4SBHc1wWe206OPQQ",
-    "CQACAgIAAxkBAAIDMmqxOwmZY4uxm2wLvM6GFCe492L1AAJkrgACtoFwSuB6a2KHz-_XPQQ",
-    "CQACAgIAAxkBAAIDM2qxOwlhVRot8TkUS47rDPVuqWmwAAL6gAACbHvpSswZ-s9J0Jp_PQQ"
+    "CQACAgIAAxkDAALeLmq4xrcbDCl6gtpHuNt1dkik5NNJAAL6gAACbHvpSswZ-s9J0Jp_PQQ",
+    "CQACAgIAAxkDAALeK2q4xoeunJmnNwaVusIoqK6boa3wAAJkrgACtoFwSuB6a2KHz-_XPQQ",
+    "CQACAgIAAxkDAALeKGq4xkbrQV2-vXufmLFtAjQwxoKZAAIzLgAClup4SBHc1wWe206OPQQ",
+    "CQACAgQAAxkDAALeJWq4xhMS90A_3-DT4vvM1eT1UK6VAAK5MwACDxARUu7Fjr7FPhwUPQQ",
+    "CQACAgIAAxkBAAIEd2rCHbvVHZ_n7JgDW6zkRh8NjG3EAAJFPAACMlFJSqNuOnWB4E0gPQQ"
 ]
 
 genai.configure(api_key=GEMINI_API_KEY)
@@ -182,8 +182,7 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
     
-    # gemini-1.5-flash-latest သို့မဟုတ် gemini-1.5-flash အသုံးပြုခြင်း
-    model = genai.GenerativeModel("gemini-3.1-flash-lite", system_instruction=full_instruction)
+    model = genai.GenerativeModel("gemini-1.5-flash-latest", system_instruction=full_instruction)
     
     contents = []
     for msg in history:
@@ -230,7 +229,6 @@ def format_user_prompt(sender, raw_text, is_group=False):
 
 
 async def auto_daily_greeting():
-    """မနက်တိုင်း Special Group သို့သာ မနက်ခင်း နှုတ်ခွန်းဆက် စာပို့ပေးသည့် Function"""
     prompt = (
         f"ဒီနေ့ {get_current_mm_time_str()} ဖြစ်ပါတယ်။ အစ်ကိုအောင်၊ မမငြိမ်း၊ ညီမလေးချစ်ရတဲ့ ယဉ် (ဘေဘီယဉ်) တို့ အဖွဲ့ဝင်တွေအတွက် "
         "မြန်မာနိုင်ငံ ရာသီဥတု အခြေအနေ အကျဉ်းချုပ်နဲ့ မနက်ခင်း နှုတ်ခွန်းဆက်စကား ပို့ပေးပါ။\n\n"
@@ -307,7 +305,7 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.username != ADMIN_USERNAME:
-        await update.message.reply_text("⚠️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
+        await update.message.reply_text("⚠️️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
         return
     msg_to_send = " ".join(context.args)
     if not msg_to_send:
