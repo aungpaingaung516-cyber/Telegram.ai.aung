@@ -177,8 +177,10 @@ def save_sent_songs(chat_id, sent_list):
 def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
-    # Gemini 3 Series မော်ဒယ်သစ် (gemini-3.5-flash) သို့ အစားထိုးထားသည်
-    model = genai.GenerativeModel("gemini-3.5-flash", system_instruction=full_instruction)
+    
+    # Official Gemini 1.5 Flash Model
+    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=full_instruction)
+    
     contents = []
     for msg in history:
         role = "user" if msg["role"] == "user" else "model"
@@ -293,7 +295,7 @@ async def welcome_new_member(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.username != ADMIN_USERNAME:
-        await update.message.reply_text("⚠️️ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
+        await update.message.reply_text("⚠ ဒီ Command ကို Admin (အစ်ကိုအောင်) တစ်ဦးပဲ သုံးလို့ရပါတယ်ရှင့်!")
         return
     total_chats = len(_memory_histories)
     await update.message.reply_text(f"📊 *Bot Stats*\n\n💬 Active Memory Chats: `{total_chats}`", parse_mode="Markdown")
