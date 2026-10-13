@@ -6,7 +6,6 @@ import asyncio
 import datetime
 import pytz
 import requests
-import nest_asyncio
 import google.generativeai as genai
 from PIL import Image
 from flask import Flask, request
@@ -14,9 +13,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
-
-# Flask & Asyncio Event Loop Conflict မဖြစ်စေရန်
-nest_asyncio.apply()
 
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
@@ -35,7 +31,7 @@ GROUP_USERS = {
     "cutieymh": "ဘေဘီယဉ်"
 }
 
-# အစ်ကိုအောင် ပို့ပေးထားသော သီချင်း File ID များ (စုစုပေါင်း ၅ ပုဒ်)
+# အစ်ကိုအောင် ပို့ပေးထားသော သီချင်း File ID များ
 SONG_FILE_IDS = [
     "CQACAgIAAxkDAALeLmq4xrcbDCl6gtpHuNt1dkik5NNJAAL6gAACbHvpSswZ-s9J0Jp_PQQ",
     "CQACAgIAAxkDAALeK2q4xoeunJmnNwaVusIoqK6boa3wAAJkrgACtoFwSuB6a2KHz-_XPQQ",
@@ -235,7 +231,7 @@ async def auto_daily_greeting():
         "စည်းကမ်းချက်များ -\n"
         "၁။ မနက်တိုင်း မရိုးရအောင် အငယ်ဆုံး ညီမလေး SORA ပုံစံဖြင့် တိုတိုတုတ်တုတ် နွေးနွေးထွေးထွေး နှုတ်ဆက်ရန်။\n"
         "၂။ ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အကျဉ်းချုပ် (အပူချိန်နဲ့ မိုး/တိမ်) ကို လိုရင်းပဲ ပါရှိရန်။\n"
-        "၃။ ဘေဘီယဉ် ကို ခေါ်ဆိုရာတွင် 'ဘေဘီယဉ်' သို့မဟုတ် 'ညီမလေးချစ်ရတဲ့ ယဉ်' ဟုသာ ခေါ်ရန် ('cu ရယ်' ဟု လုံးဝ မခေါ်ရပါ)。\n"
+        "၃။ ဘေဘီယဉ် ကို ခေါ်ဆိုရာတွင် 'ဘေဘီယဉ်' သို့မဟုတ် 'ညီမလေးချစ်ရတဲ့ ယဉ်' ဟုသာ ခေါ်ရန် ('cu ရယ်' ဟု လုံးဝ မခေါ်ရပါ)။\n"
         "၄။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း ပါရှိရန်။"
     )
     try:
@@ -441,25 +437,27 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(reply_text, parse_mode="Markdown")
 
 
-async def send_next_song_if_available(update_msg, context, chat_id):
+async def send_next_song_if_available(message, context, chat_id):
     sent_list = get_sent_songs(chat_id)
     sent_count = len(sent_list)
     
     if SONG_FILE_IDS and sent_count < len(SONG_FILE_IDS):
         next_song = SONG_FILE_IDS[sent_count]
-        b_conn_id = getattr(update_msg, "business_connection_id", None)
+        b_conn_id = getattr(message, "business_connection_id", None)
         caption_text = f"🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် သီချင်းလေး နားထောင်ရင်း စောင့်လို့ရပါတယ်နော် ({sent_count + 1}/{len(SONG_FILE_IDS)}) 🎧✨"
         
         try:
             if b_conn_id:
+                # Business Connection အတွက် reply_to_message_id ဖြင့် တိကျစွာ ပို့ပေးခြင်း
                 await context.bot.send_audio(
                     chat_id=chat_id,
                     audio=next_song,
                     caption=caption_text,
-                    business_connection_id=b_conn_id
+                    business_connection_id=b_conn_id,
+                    reply_to_message_id=message.message_id
                 )
             else:
-                await update_msg.reply_audio(
+                await message.reply_audio(
                     audio=next_song,
                     caption=caption_text
                 )
@@ -502,10 +500,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         b_conn_id = getattr(message, "business_connection_id", None)
         if is_business and b_conn_id:
+            # Business စာပြန်ရာတွင် reply_to_message_id ပါဝင်အောင် ပြင်ဆင်ထားသည်
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=reply,
-                business_connection_id=b_conn_id
+                business_connection_id=b_conn_id,
+                reply_to_message_id=message.message_id
             )
         else:
             await message.reply_text(reply)
@@ -515,14 +515,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     except Exception as e:
         logging.error(f"Error handling message: {e}")
-        try:
-            b_conn_id = getattr(message, "business_connection_id", None)
-            if is_business and b_conn_id:
-                await context.bot.send_message(chat_id=chat_id, text=f"⚠️ Error: {str(e)[:300]}", business_connection_id=b_conn_id)
-            else:
-                await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
-        except:
-            pass
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -562,7 +554,8 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=reply,
-                business_connection_id=b_conn_id
+                business_connection_id=b_conn_id,
+                reply_to_message_id=message.message_id
             )
         else:
             await message.reply_text(reply)
@@ -572,14 +565,6 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     except Exception as e:
         logging.error(f"Error handling photo: {e}")
-        try:
-            b_conn_id = getattr(message, "business_connection_id", None)
-            if is_business and b_conn_id:
-                await context.bot.send_message(chat_id=chat_id, text=f"⚠️ Error: {str(e)[:300]}", business_connection_id=b_conn_id)
-            else:
-                await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
-        except:
-            pass
 
 
 async def post_init(app: Application):
@@ -616,14 +601,14 @@ tg_app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
 tg_app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+# Asyncio Loop Conflict ကာကွယ်ရန် သီးသန့် Event Loop ဖန်တီးခြင်း
 _loop = asyncio.new_event_loop()
 asyncio.set_event_loop(_loop)
 _loop.run_until_complete(tg_app.initialize())
-_loop.run_until_complete(post_init(tg_app))
 
 
 def run_auto_greeting_job():
-    _loop.run_until_complete(auto_daily_greeting())
+    asyncio.run_coroutine_threadsafe(auto_daily_greeting(), _loop)
 
 
 scheduler = BackgroundScheduler(timezone="Asia/Yangon")
@@ -636,7 +621,8 @@ flask_app = Flask(__name__)
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), tg_app.bot)
-    _loop.run_until_complete(tg_app.process_update(update))
+    # Event loop တိုက်မိခြင်းမှ ကာကွယ်ရန် safe process_update ခေါ်ဆိုခြင်း
+    asyncio.run_coroutine_threadsafe(tg_app.process_update(update), _loop)
     return "OK"
 
 
