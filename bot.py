@@ -31,7 +31,7 @@ GROUP_USERS = {
     "cutieymh": "ဘေဘီယဉ်"
 }
 
-# အစ်ကိုအောင် ပို့ပေးထားသော သီချင်း File ID များ
+# သီချင်း File ID များ
 SONG_FILE_IDS = [
     "CQACAgIAAxkDAALeLmq4xrcbDCl6gtpHuNt1dkik5NNJAAL6gAACbHvpSswZ-s9J0Jp_PQQ",
     "CQACAgIAAxkDAALeK2q4xoeunJmnNwaVusIoqK6boa3wAAJkrgACtoFwSuB6a2KHz-_XPQQ",
@@ -156,6 +156,7 @@ def get_sent_songs(chat_id):
         return json.loads(result) if result else []
     except Exception as e:
         logging.error(f"Upstash get sent_songs failed: {e}")
+        return _memory_sent_songs.get(chat_id, [])
 
 
 def save_sent_songs(chat_id, sent_list):
@@ -462,23 +463,28 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
     
-    if not is_business and not is_group and message.from_user.is_bot:
+    if not is_business and not is_group and message.from_user and message.from_user.is_bot:
         return
         
-    # Special Group ဖြစ်ပါက mention ခေါ်စရာမလိုဘဲ အလိုအလျောက် ဖြေကြားမည်
-    if is_group and chat_id != SPECIAL_GROUP_ID:
-        if not (message.text and BOT_USERNAME and f"@{BOT_USERNAME}" in message.text) and \
-           not (message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.username == BOT_USERNAME):
+    # Group တိုင်း (Special Group အပါအဝင်) မှာ Mention ขေါ်မှ သို့မဟုတ် Reply ပြန်မှ စာပြန်မည်
+    if is_group:
+        has_mention = BOT_USERNAME and f"@{BOT_USERNAME}" in message.text
+        is_reply_to_bot = (
+            message.reply_to_message and 
+            message.reply_to_message.from_user and 
+            message.reply_to_message.from_user.username == BOT_USERNAME
+        )
+        if not has_mention and not is_reply_to_bot:
             return
             
     raw_user_text = message.text or ""
     history = get_history(chat_id)
-    current_mode = context.chat_data.get("mode", "group_special" if chat_id == SPECIAL_GROUP_ID else "friendly")
+    current_mode = context.chat_data.get("mode", "group_special" if is_group else "friendly")
     formatted_prompt = format_user_prompt(message.from_user, raw_user_text, is_group=is_group)
     
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
-    elif chat_id == SPECIAL_GROUP_ID or is_group:
+    elif is_group:
         custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
     else:
         custom_inst = SYSTEM_INSTRUCTIONS["friendly"]
@@ -517,13 +523,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
     
-    if is_group and chat_id != SPECIAL_GROUP_ID:
-        if not (message.caption and BOT_USERNAME and f"@{BOT_USERNAME}" in message.caption) and \
-           not (message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.username == BOT_USERNAME):
+    if is_group:
+        has_mention = BOT_USERNAME and message.caption and f"@{BOT_USERNAME}" in message.caption
+        is_reply_to_bot = (
+            message.reply_to_message and 
+            message.reply_to_message.from_user and 
+            message.reply_to_message.from_user.username == BOT_USERNAME
+        )
+        if not has_mention and not is_reply_to_bot:
             return
             
     history = get_history(chat_id)
-    current_mode = context.chat_data.get("mode", "group_special" if chat_id == SPECIAL_GROUP_ID else "friendly")
+    current_mode = context.chat_data.get("mode", "group_special" if is_group else "friendly")
     photo_file = await message.photo[-1].get_file()
     photo_bytes = await photo_file.download_as_bytearray()
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
@@ -532,7 +543,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
-    elif chat_id == SPECIAL_GROUP_ID or is_group:
+    elif is_group:
         custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
     else:
         custom_inst = SYSTEM_INSTRUCTIONS["friendly"]
@@ -594,26 +605,13 @@ tg_app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
 tg_app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-_loop = asyncio.new_event_loop()
-asyncio.set_event_loop(_loop)
-_loop.run_until_complete(tg_app.initialize())
-
-
-def run_auto_greeting_job():
-    asyncio.run_coroutine_threadsafe(auto_daily_greeting(), _loop)
-
-
-scheduler = BackgroundScheduler(timezone="Asia/Yangon")
-scheduler.add_job(run_auto_greeting_job, "cron", hour=6, minute=30)
-scheduler.start()
-
 flask_app = Flask(__name__)
 
 
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), tg_app.bot)
-    asyncio.run_coroutine_threadsafe(tg_app.process_update(update), _loop)
+    asyncio.run(tg_app.process_update(update))
     return "OK"
 
 
