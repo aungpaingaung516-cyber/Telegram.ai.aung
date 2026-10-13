@@ -99,6 +99,7 @@ SYSTEM_INSTRUCTIONS = {
 }
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 QUICK_PROMPTS = {
     "english": "I want to practice English conversation. Please start a short, simple conversation with me in English, and gently correct any mistakes I make as we talk.",
