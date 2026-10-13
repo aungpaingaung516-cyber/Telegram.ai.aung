@@ -156,7 +156,6 @@ def get_sent_songs(chat_id):
         return json.loads(result) if result else []
     except Exception as e:
         logging.error(f"Upstash get sent_songs failed: {e}")
-        return _memory_sent_songs.get(chat_id, [])
 
 
 def save_sent_songs(chat_id, sent_list):
@@ -404,22 +403,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=get_main_keyboard(is_group=is_group))
 
 
-def should_respond_in_group(update: Update) -> bool:
-    message = update.effective_message
-    if not message:
-        return False
-    chat_type = message.chat.type
-    if chat_type in ["group", "supergroup"]:
-        if message.text and BOT_USERNAME and f"@{BOT_USERNAME}" in message.text:
-            return True
-        if message.caption and BOT_USERNAME and f"@{BOT_USERNAME}" in message.caption:
-            return True
-        if message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.username == BOT_USERNAME:
-            return True
-        return False
-    return True
-
-
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.effective_message
     if not message or not message.audio:
@@ -448,7 +431,6 @@ async def send_next_song_if_available(message, context, chat_id):
         
         try:
             if b_conn_id:
-                # Business Connection အတွက် reply_to_message_id ဖြင့် တိကျစွာ ပို့ပေးခြင်း
                 await context.bot.send_audio(
                     chat_id=chat_id,
                     audio=next_song,
@@ -464,33 +446,42 @@ async def send_next_song_if_available(message, context, chat_id):
             
             sent_list.append(next_song)
             save_sent_songs(chat_id, sent_list)
-            logging.info(f"✅ Business Audio sent successfully to chat_id: {chat_id}")
+            logging.info(f"✅ Audio sent successfully to chat_id: {chat_id}")
         except Exception as audio_err:
-            logging.error(f"❌ Business Audio Send Failed for {chat_id}: {audio_err}")
+            logging.error(f"❌ Audio Send Failed for {chat_id}: {audio_err}")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_business = update.business_message is not None
     message = update.business_message if is_business else update.effective_message
+    
     if not message or not message.text:
-        return
-    if not is_business and not should_respond_in_group(update):
         return
         
     chat_id = message.chat_id
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
+    
+    if not is_business and not is_group and message.from_user.is_bot:
+        return
+        
+    # Special Group ဖြစ်ပါက mention ခေါ်စရာမလိုဘဲ အလိုအလျောက် ဖြေကြားမည်
+    if is_group and chat_id != SPECIAL_GROUP_ID:
+        if not (message.text and BOT_USERNAME and f"@{BOT_USERNAME}" in message.text) and \
+           not (message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.username == BOT_USERNAME):
+            return
+            
     raw_user_text = message.text or ""
     history = get_history(chat_id)
-    current_mode = context.chat_data.get("mode", "friendly")
+    current_mode = context.chat_data.get("mode", "group_special" if chat_id == SPECIAL_GROUP_ID else "friendly")
     formatted_prompt = format_user_prompt(message.from_user, raw_user_text, is_group=is_group)
     
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
-    elif is_group:
+    elif chat_id == SPECIAL_GROUP_ID or is_group:
         custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
     else:
-        custom_inst = None
+        custom_inst = SYSTEM_INSTRUCTIONS["friendly"]
         
     try:
         reply = get_ai_response(history, formatted_prompt, custom_instruction=custom_inst, mode=current_mode)
@@ -500,18 +491,16 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         b_conn_id = getattr(message, "business_connection_id", None)
         if is_business and b_conn_id:
-            # Business စာပြန်ရာတွင် reply_to_message_id ပါဝင်အောင် ပြင်ဆင်ထားသည်
             await context.bot.send_message(
                 chat_id=chat_id,
                 text=reply,
                 business_connection_id=b_conn_id,
                 reply_to_message_id=message.message_id
             )
+            if SONG_FILE_IDS:
+                await send_next_song_if_available(message, context, chat_id)
         else:
             await message.reply_text(reply)
-            
-        if is_business and SONG_FILE_IDS:
-            await send_next_song_if_available(message, context, chat_id)
             
     except Exception as e:
         logging.error(f"Error handling message: {e}")
@@ -520,16 +509,21 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_business = update.business_message is not None
     message = update.business_message if is_business else update.effective_message
+    
     if not message or not message.photo:
-        return
-    if not is_business and not should_respond_in_group(update):
         return
         
     chat_id = message.chat_id
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
+    
+    if is_group and chat_id != SPECIAL_GROUP_ID:
+        if not (message.caption and BOT_USERNAME and f"@{BOT_USERNAME}" in message.caption) and \
+           not (message.reply_to_message and message.reply_to_message.from_user and message.reply_to_message.from_user.username == BOT_USERNAME):
+            return
+            
     history = get_history(chat_id)
-    current_mode = context.chat_data.get("mode", "friendly")
+    current_mode = context.chat_data.get("mode", "group_special" if chat_id == SPECIAL_GROUP_ID else "friendly")
     photo_file = await message.photo[-1].get_file()
     photo_bytes = await photo_file.download_as_bytearray()
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
@@ -538,10 +532,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
-    elif is_group:
+    elif chat_id == SPECIAL_GROUP_ID or is_group:
         custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
     else:
-        custom_inst = None
+        custom_inst = SYSTEM_INSTRUCTIONS["friendly"]
         
     try:
         reply = get_ai_response(history, formatted_caption, image=image, custom_instruction=custom_inst, mode=current_mode)
@@ -557,11 +551,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 business_connection_id=b_conn_id,
                 reply_to_message_id=message.message_id
             )
+            if SONG_FILE_IDS:
+                await send_next_song_if_available(message, context, chat_id)
         else:
             await message.reply_text(reply)
-            
-        if is_business and SONG_FILE_IDS:
-            await send_next_song_if_available(message, context, chat_id)
             
     except Exception as e:
         logging.error(f"Error handling photo: {e}")
@@ -601,7 +594,6 @@ tg_app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
 tg_app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-# Asyncio Loop Conflict ကာကွယ်ရန် သီးသန့် Event Loop ဖန်တီးခြင်း
 _loop = asyncio.new_event_loop()
 asyncio.set_event_loop(_loop)
 _loop.run_until_complete(tg_app.initialize())
@@ -621,7 +613,6 @@ flask_app = Flask(__name__)
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), tg_app.bot)
-    # Event loop တိုက်မိခြင်းမှ ကာကွယ်ရန် safe process_update ခေါ်ဆိုခြင်း
     asyncio.run_coroutine_threadsafe(tg_app.process_update(update), _loop)
     return "OK"
 
