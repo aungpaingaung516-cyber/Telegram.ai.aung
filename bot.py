@@ -3,6 +3,7 @@ import io
 import json
 import logging
 import asyncio
+import threading
 import datetime
 import pytz
 import requests
@@ -177,9 +178,9 @@ def save_sent_songs(chat_id, sent_list):
 def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
-    
+
     model = genai.GenerativeModel("gemini-3.1-flash-lite", system_instruction=full_instruction)
-    
+
     contents = []
     for msg in history:
         role = "user" if msg["role"] == "user" else "model"
@@ -424,12 +425,12 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def send_next_song_if_available(message, context, chat_id):
     sent_list = get_sent_songs(chat_id)
     sent_count = len(sent_list)
-    
+
     if SONG_FILE_IDS and sent_count < len(SONG_FILE_IDS):
         next_song = SONG_FILE_IDS[sent_count]
         b_conn_id = getattr(message, "business_connection_id", None)
         caption_text = f"🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် သီချင်းလေး နားထောင်ရင်း စောင့်လို့ရပါတယ်နော် ({sent_count + 1}/{len(SONG_FILE_IDS)}) 🎧✨"
-        
+
         try:
             if b_conn_id:
                 await context.bot.send_audio(
@@ -444,7 +445,7 @@ async def send_next_song_if_available(message, context, chat_id):
                     audio=next_song,
                     caption=caption_text
                 )
-            
+
             sent_list.append(next_song)
             save_sent_songs(chat_id, sent_list)
             logging.info(f"✅ Audio sent successfully to chat_id: {chat_id}")
@@ -455,46 +456,46 @@ async def send_next_song_if_available(message, context, chat_id):
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_business = update.business_message is not None
     message = update.business_message if is_business else update.effective_message
-    
+
     if not message or not message.text:
         return
-        
+
     chat_id = message.chat_id
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
-    
+
     if not is_business and not is_group and message.from_user and message.from_user.is_bot:
         return
-        
-    # Group တိုင်း (Special Group အပါအဝင်) မှာ Mention ขေါ်မှ သို့မဟုတ် Reply ပြန်မှ စာပြန်မည်
+
+    # Group တိုင်း (Special Group အပါအဝင်) မှာ Mention လုပ်မှ သို့မဟုတ် Reply ပြန်မှ စာပြန်မည်
     if is_group:
         has_mention = BOT_USERNAME and f"@{BOT_USERNAME}" in message.text
         is_reply_to_bot = (
-            message.reply_to_message and 
-            message.reply_to_message.from_user and 
+            message.reply_to_message and
+            message.reply_to_message.from_user and
             message.reply_to_message.from_user.username == BOT_USERNAME
         )
         if not has_mention and not is_reply_to_bot:
             return
-            
+
     raw_user_text = message.text or ""
     history = get_history(chat_id)
     current_mode = context.chat_data.get("mode", "group_special" if is_group else "friendly")
     formatted_prompt = format_user_prompt(message.from_user, raw_user_text, is_group=is_group)
-    
+
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
     elif is_group:
         custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
     else:
         custom_inst = SYSTEM_INSTRUCTIONS["friendly"]
-        
+
     try:
         reply = get_ai_response(history, formatted_prompt, custom_instruction=custom_inst, mode=current_mode)
         history.append({"role": "user", "content": formatted_prompt})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
-        
+
         b_conn_id = getattr(message, "business_connection_id", None)
         if is_business and b_conn_id:
             await context.bot.send_message(
@@ -507,7 +508,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await send_next_song_if_available(message, context, chat_id)
         else:
             await message.reply_text(reply)
-            
+
     except Exception as e:
         logging.error(f"Error handling message: {e}")
 
@@ -515,24 +516,24 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     is_business = update.business_message is not None
     message = update.business_message if is_business else update.effective_message
-    
+
     if not message or not message.photo:
         return
-        
+
     chat_id = message.chat_id
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
-    
+
     if is_group:
         has_mention = BOT_USERNAME and message.caption and f"@{BOT_USERNAME}" in message.caption
         is_reply_to_bot = (
-            message.reply_to_message and 
-            message.reply_to_message.from_user and 
+            message.reply_to_message and
+            message.reply_to_message.from_user and
             message.reply_to_message.from_user.username == BOT_USERNAME
         )
         if not has_mention and not is_reply_to_bot:
             return
-            
+
     history = get_history(chat_id)
     current_mode = context.chat_data.get("mode", "group_special" if is_group else "friendly")
     photo_file = await message.photo[-1].get_file()
@@ -540,20 +541,20 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
     raw_caption = message.caption or "What is in this image?"
     formatted_caption = format_user_prompt(message.from_user, raw_caption, is_group=is_group)
-    
+
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
     elif is_group:
         custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
     else:
         custom_inst = SYSTEM_INSTRUCTIONS["friendly"]
-        
+
     try:
         reply = get_ai_response(history, formatted_caption, image=image, custom_instruction=custom_inst, mode=current_mode)
         history.append({"role": "user", "content": formatted_caption})
         history.append({"role": "assistant", "content": reply})
         save_history(chat_id, history)
-        
+
         b_conn_id = getattr(message, "business_connection_id", None)
         if is_business and b_conn_id:
             await context.bot.send_message(
@@ -566,16 +567,9 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 await send_next_song_if_available(message, context, chat_id)
         else:
             await message.reply_text(reply)
-            
+
     except Exception as e:
         logging.error(f"Error handling photo: {e}")
-
-
-async def post_init(app: Application):
-    global BOT_USERNAME
-    me = await app.bot.get_me()
-    BOT_USERNAME = me.username
-    logging.info(f"Bot username: @{BOT_USERNAME}")
 
 
 request_kwargs = dict(connect_timeout=30.0, read_timeout=30.0, write_timeout=30.0, pool_timeout=30.0)
@@ -587,7 +581,6 @@ tg_app = (
     Application.builder()
     .token(TELEGRAM_TOKEN)
     .request(t_request)
-    .post_init(post_init)
     .build()
 )
 
@@ -605,13 +598,38 @@ tg_app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
 tg_app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
 tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
+
+# ===== FIX: Event loop တစ်ခုကို အမြဲဖွင့်ထားပြီး Application ကို initialize လုပ်ခြင်း =====
+loop = asyncio.new_event_loop()
+
+
+def _run_loop():
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+
+threading.Thread(target=_run_loop, daemon=True).start()
+
+
+async def _startup():
+    global BOT_USERNAME
+    await tg_app.initialize()
+    await tg_app.start()
+    me = await tg_app.bot.get_me()
+    BOT_USERNAME = me.username
+    logging.info(f"Bot username: @{BOT_USERNAME}")
+
+
+asyncio.run_coroutine_threadsafe(_startup(), loop).result()
+# ================================================================================
+
 flask_app = Flask(__name__)
 
 
 @flask_app.route(f"/webhook/{TELEGRAM_TOKEN}", methods=["POST"])
 def webhook():
     update = Update.de_json(request.get_json(force=True), tg_app.bot)
-    asyncio.run(tg_app.process_update(update))
+    asyncio.run_coroutine_threadsafe(tg_app.process_update(update), loop)
     return "OK"
 
 
