@@ -35,7 +35,7 @@ GROUP_USERS = {
     "cutieymh": "ဘေဘီယဉ်"
 }
 
-# သီချင်း File ID များ (သို့မဟုတ် Direct MP3 URL များ)
+# အစ်ကိုအောင် ပို့ပေးထားသော သီချင်း File ID များ (စုစုပေါင်း ၅ ပုဒ်)
 SONG_FILE_IDS = [
     "CQACAgIAAxkDAALeLmq4xrcbDCl6gtpHuNt1dkik5NNJAAL6gAACbHvpSswZ-s9J0Jp_PQQ",
     "CQACAgIAAxkDAALeK2q4xoeunJmnNwaVusIoqK6boa3wAAJkrgACtoFwSuB6a2KHz-_XPQQ",
@@ -235,7 +235,7 @@ async def auto_daily_greeting():
         "စည်းကမ်းချက်များ -\n"
         "၁။ မနက်တိုင်း မရိုးရအောင် အငယ်ဆုံး ညီမလေး SORA ပုံစံဖြင့် တိုတိုတုတ်တုတ် နွေးနွေးထွေးထွေး နှုတ်ဆက်ရန်။\n"
         "၂။ ဒီနေ့ မြန်မာနိုင်ငံ ရာသီဥတု အကျဉ်းချုပ် (အပူချိန်နဲ့ မိုး/တိမ်) ကို လိုရင်းပဲ ပါရှိရန်။\n"
-        "၃။ ဘေဘီယဉ် ကို ခေါ်ဆိုရာတွင် 'ဘေဘီယဉ်' သို့မဟုတ် 'ညီမလေးချစ်ရတဲ့ ယဉ်' ဟုသာ ခေါ်ရန် ('cu ရယ်' ဟု လုံးဝ မခေါ်ရပါ)။\n"
+        "၃။ ဘေဘီယဉ် ကို ခေါ်ဆိုရာတွင် 'ဘေဘီယဉ်' သို့မဟုတ် 'ညီမလေးချစ်ရတဲ့ ယဉ်' ဟုသာ ခေါ်ရန် ('cu ရယ်' ဟု လုံးဝ မခေါ်ရပါ)。\n"
         "၄။ စာပိုဒ်အဆုံးသတ်တွင် Short English wish တစ်ကြောင်း ပါရှိရန်။"
     )
     try:
@@ -404,7 +404,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             mode_title = "😊 Friendly Mode"
         else:
             mode_title = "💼 Professional Mode"
-        msg = f"⚙️️ AI Mode ကို *{mode_title}* သို့ ပြောင်းလဲလိုက်ပါပြီ!"
+        msg = f"⚙️ AI Mode ကို *{mode_title}* သို့ ပြောင်းလဲလိုက်ပါပြီ!"
         await query.edit_message_text(msg, parse_mode="Markdown", reply_markup=get_main_keyboard(is_group=is_group))
 
 
@@ -441,33 +441,32 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await message.reply_text(reply_text, parse_mode="Markdown")
 
 
-async def send_next_song_if_available(message, chat_id):
+async def send_next_song_if_available(update_msg, context, chat_id):
     sent_list = get_sent_songs(chat_id)
     sent_count = len(sent_list)
     
     if SONG_FILE_IDS and sent_count < len(SONG_FILE_IDS):
         next_song = SONG_FILE_IDS[sent_count]
-        b_conn_id = getattr(message, "business_connection_id", None)
+        b_conn_id = getattr(update_msg, "business_connection_id", None)
         caption_text = f"🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် သီချင်းလေး နားထောင်ရင်း စောင့်လို့ရပါတယ်နော် ({sent_count + 1}/{len(SONG_FILE_IDS)}) 🎧✨"
         
         try:
             if b_conn_id:
-                # Telegram Business Connection ဖြင့် Audio ပို့ခြင်း
-                await message.get_bot().send_audio(
+                await context.bot.send_audio(
                     chat_id=chat_id,
                     audio=next_song,
                     caption=caption_text,
                     business_connection_id=b_conn_id
                 )
             else:
-                await message.reply_audio(
+                await update_msg.reply_audio(
                     audio=next_song,
                     caption=caption_text
                 )
             
             sent_list.append(next_song)
             save_sent_songs(chat_id, sent_list)
-            logging.info(f"✅ Audio sent successfully to chat_id: {chat_id}")
+            logging.info(f"✅ Business Audio sent successfully to chat_id: {chat_id}")
         except Exception as audio_err:
             logging.error(f"❌ Business Audio Send Failed for {chat_id}: {audio_err}")
 
@@ -479,6 +478,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if not is_business and not should_respond_in_group(update):
         return
+        
     chat_id = message.chat_id
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
@@ -486,12 +486,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     history = get_history(chat_id)
     current_mode = context.chat_data.get("mode", "friendly")
     formatted_prompt = format_user_prompt(message.from_user, raw_user_text, is_group=is_group)
+    
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
     elif is_group:
         custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
     else:
         custom_inst = None
+        
     try:
         reply = get_ai_response(history, formatted_prompt, custom_instruction=custom_inst, mode=current_mode)
         history.append({"role": "user", "content": formatted_prompt})
@@ -500,7 +502,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         b_conn_id = getattr(message, "business_connection_id", None)
         if is_business and b_conn_id:
-            await message.get_bot().send_message(
+            await context.bot.send_message(
                 chat_id=chat_id,
                 text=reply,
                 business_connection_id=b_conn_id
@@ -508,12 +510,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await message.reply_text(reply)
             
-        # Business စာဖြစ်ပါက သီချင်း ပို့ပေးရန် Call ခေါ်ခြင်း
         if is_business and SONG_FILE_IDS:
-            await send_next_song_if_available(message, chat_id)
+            await send_next_song_if_available(message, context, chat_id)
+            
     except Exception as e:
         logging.error(f"Error handling message: {e}")
-        await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
+        try:
+            b_conn_id = getattr(message, "business_connection_id", None)
+            if is_business and b_conn_id:
+                await context.bot.send_message(chat_id=chat_id, text=f"⚠️ Error: {str(e)[:300]}", business_connection_id=b_conn_id)
+            else:
+                await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
+        except:
+            pass
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -523,6 +532,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     if not is_business and not should_respond_in_group(update):
         return
+        
     chat_id = message.chat_id
     chat_type = message.chat.type
     is_group = chat_type in ["group", "supergroup"]
@@ -533,12 +543,14 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     image = Image.open(io.BytesIO(bytes(photo_bytes)))
     raw_caption = message.caption or "What is in this image?"
     formatted_caption = format_user_prompt(message.from_user, raw_caption, is_group=is_group)
+    
     if is_business:
         custom_inst = SYSTEM_INSTRUCTIONS["business_assistant"]
     elif is_group:
         custom_inst = SYSTEM_INSTRUCTIONS["group_special"]
     else:
         custom_inst = None
+        
     try:
         reply = get_ai_response(history, formatted_caption, image=image, custom_instruction=custom_inst, mode=current_mode)
         history.append({"role": "user", "content": formatted_caption})
@@ -547,7 +559,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         b_conn_id = getattr(message, "business_connection_id", None)
         if is_business and b_conn_id:
-            await message.get_bot().send_message(
+            await context.bot.send_message(
                 chat_id=chat_id,
                 text=reply,
                 business_connection_id=b_conn_id
@@ -556,10 +568,18 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await message.reply_text(reply)
             
         if is_business and SONG_FILE_IDS:
-            await send_next_song_if_available(message, chat_id)
+            await send_next_song_if_available(message, context, chat_id)
+            
     except Exception as e:
         logging.error(f"Error handling photo: {e}")
-        await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
+        try:
+            b_conn_id = getattr(message, "business_connection_id", None)
+            if is_business and b_conn_id:
+                await context.bot.send_message(chat_id=chat_id, text=f"⚠️ Error: {str(e)[:300]}", business_connection_id=b_conn_id)
+            else:
+                await message.reply_text(f"⚠️ Error: {str(e)[:300]}")
+        except:
+            pass
 
 
 async def post_init(app: Application):
@@ -594,8 +614,6 @@ tg_app.add_handler(CommandHandler("broadcast", broadcast_command))
 tg_app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
 tg_app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
 tg_app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-
-# Business & Standard Messages Filter
 tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 _loop = asyncio.new_event_loop()
@@ -605,7 +623,6 @@ _loop.run_until_complete(post_init(tg_app))
 
 
 def run_auto_greeting_job():
-    """APScheduler calls this synchronously; it drives the async greeting on our shared loop."""
     _loop.run_until_complete(auto_daily_greeting())
 
 
