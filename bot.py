@@ -426,33 +426,50 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_next_song_if_available(message, context, chat_id):
     sent_list = get_sent_songs(chat_id)
-    sent_count = len(sent_list)
+    # ပို့ပြီးသား ID များကို ကျော်ပြီး မပို့ရသေးတဲ့ ပထမဆုံး သီချင်းကို ရွေးမည်
+    remaining = [s for s in SONG_FILE_IDS if s not in sent_list]
+    if not remaining:
+        logging.info(f"🎵 All songs already sent to chat_id: {chat_id}")
+        return
 
-    if SONG_FILE_IDS and sent_count < len(SONG_FILE_IDS):
-        next_song = SONG_FILE_IDS[sent_count]
-        b_conn_id = getattr(message, "business_connection_id", None)
-        caption_text = f"🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် သီချင်းလေး နားထောင်ရင်း စောင့်လို့ရပါတယ်နော် ({sent_count + 1}/{len(SONG_FILE_IDS)}) 🎧✨"
+    next_song = remaining[0]
+    sent_count = len(SONG_FILE_IDS) - len(remaining)
+    b_conn_id = getattr(message, "business_connection_id", None)
+    caption_text = f"🎵 အစ်ကိုအောင် မအားသေးလို့ရှင့် သီချင်းလေး နားထောင်ရင်း စောင့်လို့ရပါတယ်နော် ({sent_count + 1}/{len(SONG_FILE_IDS)}) 🎧✨"
 
+    async def _send_audio():
+        if b_conn_id:
+            return await context.bot.send_audio(
+                chat_id=chat_id,
+                audio=next_song,
+                caption=caption_text,
+                business_connection_id=b_conn_id,
+            )
+        return await message.reply_audio(audio=next_song, caption=caption_text)
+
+    async def _send_document():
+        if b_conn_id:
+            return await context.bot.send_document(
+                chat_id=chat_id,
+                document=next_song,
+                caption=caption_text,
+                business_connection_id=b_conn_id,
+            )
+        return await message.reply_document(document=next_song, caption=caption_text)
+
+    try:
+        await _send_audio()
+    except Exception as audio_err:
+        logging.exception(f"❌ Audio Send Failed for {chat_id} (send_audio): {audio_err}")
         try:
-            if b_conn_id:
-                await context.bot.send_audio(
-                    chat_id=chat_id,
-                    audio=next_song,
-                    caption=caption_text,
-                    business_connection_id=b_conn_id,
-                    reply_to_message_id=message.message_id
-                )
-            else:
-                await message.reply_audio(
-                    audio=next_song,
-                    caption=caption_text
-                )
+            await _send_document()
+        except Exception as doc_err:
+            logging.exception(f"❌ Audio Send Failed for {chat_id} (send_document): {doc_err}")
+            return
 
-            sent_list.append(next_song)
-            save_sent_songs(chat_id, sent_list)
-            logging.info(f"✅ Audio sent successfully to chat_id: {chat_id}")
-        except Exception as audio_err:
-            logging.error(f"❌ Audio Send Failed for {chat_id}: {audio_err}")
+    sent_list.append(next_song)
+    save_sent_songs(chat_id, sent_list)
+    logging.info(f"✅ Audio sent successfully to chat_id: {chat_id} ({sent_count + 1}/{len(SONG_FILE_IDS)})")
 
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
