@@ -181,8 +181,8 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
 
-    # 💡 FIX: gemini-3.8-flash မော်ဒယ်သို့ ပြောင်းလဲပြင်ဆင်ထားပါသည်
-    model = genai.GenerativeModel("gemini-3.8-flash", system_instruction=full_instruction)
+    # 💡 FIX: Low-latency / Free-tier အတွက် အဆင်ပြေဆုံး gemini-3.5-flash-lite သို့ ပြောင်းထားပါသည်
+    model = genai.GenerativeModel("gemini-3.5-flash-lite", system_instruction=full_instruction)
 
     contents = []
     for msg in history:
