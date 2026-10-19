@@ -181,8 +181,8 @@ def ask_gemini(history, user_text, image=None, sys_instruction=None):
     time_info = f"\n\n[REAL-TIME SYSTEM TIME: Current Myanmar (Asia/Yangon) Date & Time is {get_current_mm_time_str()}]. Use this live time whenever asked about time, date, or greetings."
     full_instruction = (sys_instruction or SYSTEM_INSTRUCTIONS["friendly"]) + time_info
 
-    # 💡 FIX: gemini-1.5-flash သို့ ပြောင်းလဲထားပါသည် (Free Limit အများဆုံး ရရှိသော Model ဖြစ်ပါသည်)
-    model = genai.GenerativeModel("gemini-1.5-flash", system_instruction=full_instruction)
+    # 💡 gemini-2.0-flash သို့ ပြောင်းလဲထားပါသည်
+    model = genai.GenerativeModel("gemini-2.0-flash", system_instruction=full_instruction)
 
     contents = []
     for msg in history:
@@ -615,7 +615,7 @@ tg_app.add_handler(CommandHandler("broadcast", broadcast_command))
 tg_app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
 tg_app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
 
-# ----- TELEGRAM BUSINESS SUPPORT INCLUDED -----
+# ----- TELEGRAM BUSINESS SUPPORT HANDLERS -----
 tg_app.add_handler(MessageHandler(filters.PHOTO & ~filters.UpdateType.BUSINESS_MESSAGE, handle_photo))
 tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.UpdateType.BUSINESS_MESSAGE, handle_message))
 
