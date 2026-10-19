@@ -15,11 +15,11 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, ContextTypes, filters
 from telegram.request import HTTPXRequest
 
+# ==================== ENVIRONMENT VARIABLES ====================
 TELEGRAM_TOKEN = os.environ["TELEGRAM_TOKEN"]
 GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 UPSTASH_URL = os.environ.get("UPSTASH_URL")
 UPSTASH_TOKEN = os.environ.get("UPSTASH_TOKEN")
-
 OUTBOUND_PROXY = os.environ.get("OUTBOUND_PROXY")
 
 ADMIN_USERNAME = "Aungphyopaing7"
@@ -426,7 +426,6 @@ async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def send_next_song_if_available(message, context, chat_id):
     sent_list = get_sent_songs(chat_id)
-    # ပို့ပြီးသား ID များကို ကျော်ပြီး မပို့ရသေးတဲ့ ပထမဆုံး သီချင်းကို ရွေးမည်
     remaining = [s for s in SONG_FILE_IDS if s not in sent_list]
     if not remaining:
         logging.info(f"🎵 All songs already sent to chat_id: {chat_id}")
@@ -486,7 +485,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not is_business and not is_group and message.from_user and message.from_user.is_bot:
         return
 
-    # Group တိုင်း (Special Group အပါအဝင်) မှာ Mention လုပ်မှ သို့မဟုတ် Reply ပြန်မှ စာပြန်မည်
     if is_group:
         has_mention = BOT_USERNAME and f"@{BOT_USERNAME}" in message.text
         is_reply_to_bot = (
@@ -591,6 +589,7 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logging.error(f"Error handling photo: {e}")
 
 
+# ==================== BOT SETUP & HANDLERS ====================
 request_kwargs = dict(connect_timeout=30.0, read_timeout=30.0, write_timeout=30.0, pool_timeout=30.0)
 if OUTBOUND_PROXY:
     request_kwargs["proxy"] = OUTBOUND_PROXY
@@ -603,6 +602,7 @@ tg_app = (
     .build()
 )
 
+# Basic & Feature Commands
 tg_app.add_handler(CommandHandler("start", start))
 tg_app.add_handler(CommandHandler("reset", reset))
 tg_app.add_handler(CallbackQueryHandler(button_handler))
@@ -614,11 +614,18 @@ tg_app.add_handler(CommandHandler("stats", stats_command))
 tg_app.add_handler(CommandHandler("broadcast", broadcast_command))
 tg_app.add_handler(MessageHandler(filters.StatusUpdate.NEW_CHAT_MEMBERS, welcome_new_member))
 tg_app.add_handler(MessageHandler(filters.AUDIO, handle_audio))
-tg_app.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+# ----- UPDATED HANDLERS WITH TELEGRAM BUSINESS SUPPORT -----
+# Normal User & Group Messages
+tg_app.add_handler(MessageHandler(filters.PHOTO & ~filters.UpdateType.BUSINESS_MESSAGE, handle_photo))
+tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND & ~filters.UpdateType.BUSINESS_MESSAGE, handle_message))
+
+# Telegram Business Messages (Auto-reply for Personal Account)
+tg_app.add_handler(MessageHandler(filters.UpdateType.BUSINESS_MESSAGE & filters.PHOTO, handle_photo))
+tg_app.add_handler(MessageHandler(filters.UpdateType.BUSINESS_MESSAGE & filters.TEXT, handle_message))
 
 
-# ===== FIX: Event loop တစ်ခုကို အမြဲဖွင့်ထားပြီး Application ကို initialize လုပ်ခြင်း =====
+# ==================== ASYNC EVENT LOOP SETUP ====================
 loop = asyncio.new_event_loop()
 
 
@@ -640,8 +647,9 @@ async def _startup():
 
 
 asyncio.run_coroutine_threadsafe(_startup(), loop).result()
-# ================================================================================
 
+
+# ==================== FLASK SERVER ====================
 flask_app = Flask(__name__)
 
 
